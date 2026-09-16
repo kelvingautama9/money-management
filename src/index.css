@@ -1,0 +1,169 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --glass-blur: 24px;
+    --glass-opacity: 0.65;
+    --glass-dark-tint: 0.45;
+    --glass-specular: 0.85;
+  }
+
+  body {
+    background-color: #060713;
+    color: #f1f5f9;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+  }
+}
+
+/* iOS Liquid Glass Effect Utilities */
+.liquid-glass-card {
+  position: relative;
+  background: rgba(18, 20, 36, var(--glass-opacity));
+  backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, calc(0.12 * var(--glass-specular)));
+  box-shadow: 
+    0 20px 50px rgba(0, 0, 0, 0.5),
+    inset 0 1.5px 1px 0 rgba(255, 255, 255, calc(0.45 * var(--glass-specular))),
+    inset 0 -1px 2px 0 rgba(0, 0, 0, 0.6);
+  transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.25s ease;
+}
+
+.liquid-glass-card:hover {
+  border-color: rgba(255, 255, 255, calc(0.22 * var(--glass-specular)));
+}
+
+.liquid-glass-button {
+  position: relative;
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, calc(0.2 * var(--glass-specular)));
+  box-shadow: 
+    0 8px 24px rgba(0, 0, 0, 0.35),
+    inset 0 1px 1px 0 rgba(255, 255, 255, calc(0.5 * var(--glass-specular))),
+    inset 0 -1px 1px 0 rgba(0, 0, 0, 0.4);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.liquid-glass-button:hover {
+  background: rgba(255, 255, 255, 0.14);
+  transform: translateY(-1px);
+  box-shadow: 
+    0 12px 30px rgba(0, 0, 0, 0.45),
+    inset 0 1.5px 1.5px 0 rgba(255, 255, 255, 0.6);
+}
+
+.liquid-glass-button:active {
+  transform: scale(0.97);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.liquid-glass-input {
+  background: rgba(12, 14, 28, 0.6);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.5);
+  color: #ffffff;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.liquid-glass-input:focus {
+  border-color: rgba(96, 165, 250, 0.7);
+  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.2), inset 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+/* Apple iOS Control Center Ambient Orbs */
+.ambient-glow-1 {
+  position: absolute;
+  width: 650px;
+  height: 650px;
+  background: radial-gradient(circle, rgba(168, 85, 247, 0.22) 0%, rgba(219, 39, 119, 0.12) 45%, transparent 70%);
+  filter: blur(80px);
+  pointer-events: none;
+  border-radius: 50%;
+  animation: floatOrb1 18s infinite alternate ease-in-out;
+}
+
+.ambient-glow-2 {
+  position: absolute;
+  width: 550px;
+  height: 550px;
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.2) 0%, rgba(14, 165, 233, 0.08) 50%, transparent 70%);
+  filter: blur(90px);
+  pointer-events: none;
+  border-radius: 50%;
+  animation: floatOrb2 22s infinite alternate ease-in-out;
+}
+
+.ambient-glow-3 {
+  position: absolute;
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(236, 72, 153, 0.16) 0%, rgba(139, 92, 246, 0.08) 45%, transparent 70%);
+  filter: blur(85px);
+  pointer-events: none;
+  border-radius: 50%;
+  animation: floatOrb3 15s infinite alternate ease-in-out;
+}
+
+@keyframes floatOrb1 {
+  0% { transform: translate(0, 0) scale(1); }
+  100% { transform: translate(80px, 60px) scale(1.1); }
+}
+
+@keyframes floatOrb2 {
+  0% { transform: translate(0, 0) scale(1.05); }
+  100% { transform: translate(-70px, -50px) scale(0.95); }
+}
+
+@keyframes floatOrb3 {
+  0% { transform: translate(0, 0) scale(0.9); }
+  100% { transform: translate(50px, -60px) scale(1.15); }
+}
+
+/* Clean scrollbar-free UI with direct swipe gesture */
+* {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+*::-webkit-scrollbar {
+  display: none !important;
+  width: 0px !important;
+  height: 0px !important;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Direct swipe container with smooth momentum scrolling */
+.swipe-carousel {
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+  user-select: none;
+  scrollbar-width: none;
+}
+
+.swipe-carousel::-webkit-scrollbar {
+  display: none;
+}
+
+.swipe-item {
+  scroll-snap-align: start;
+  flex-shrink: 0;
+}
+

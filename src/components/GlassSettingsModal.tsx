@@ -1,0 +1,237 @@
+import React from 'react';
+import { GlassSettings } from '../types';
+import { Sparkles, Sliders, X, RotateCcw, Eye, ShieldCheck } from 'lucide-react';
+import { GlassButton } from './GlassButton';
+
+interface GlassSettingsModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  settings: GlassSettings;
+  onUpdateSettings: (newSettings: GlassSettings) => void;
+}
+
+export const GlassSettingsModal: React.FC<GlassSettingsModalProps> = ({
+  isOpen,
+  onClose,
+  settings,
+  onUpdateSettings
+}) => {
+  if (!isOpen) return null;
+
+  const handlePresetSelect = (preset: GlassSettings['activePreset']) => {
+    switch (preset) {
+      case 'ios26':
+        onUpdateSettings({
+          blur: 24,
+          translucency: 65,
+          darkTint: 45,
+          specularIntensity: 85,
+          tilt3d: true,
+          activePreset: 'ios26'
+        });
+        break;
+      case 'frosted':
+        onUpdateSettings({
+          blur: 36,
+          translucency: 50,
+          darkTint: 30,
+          specularIntensity: 70,
+          tilt3d: true,
+          activePreset: 'frosted'
+        });
+        break;
+      case 'deepDark':
+        onUpdateSettings({
+          blur: 20,
+          translucency: 80,
+          darkTint: 75,
+          specularIntensity: 90,
+          tilt3d: true,
+          activePreset: 'deepDark'
+        });
+        break;
+      case 'crystal':
+        onUpdateSettings({
+          blur: 14,
+          translucency: 35,
+          darkTint: 20,
+          specularIntensity: 100,
+          tilt3d: true,
+          activePreset: 'crystal'
+        });
+        break;
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-200">
+      <div 
+        style={{
+          background: 'rgba(20, 24, 45, 0.85)',
+          backdropFilter: 'blur(30px) saturate(190%)',
+          boxShadow: '0 30px 60px rgba(0,0,0,0.7), inset 0 1.5px 1px rgba(255,255,255,0.4)'
+        }}
+        className="relative w-full max-w-lg rounded-3xl border border-white/20 p-6 text-slate-100 overflow-hidden"
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between pb-4 border-b border-white/10">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-purple-500/30 to-blue-500/30 flex items-center justify-center border border-white/20 shadow-inner">
+              <Sliders className="w-5 h-5 text-blue-300" />
+            </div>
+            <div>
+              <h3 className="text-base font-semibold tracking-tight text-white flex items-center gap-2">
+                iOS 26 Liquid Glass Inspector
+                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-400/30">
+                  Refraction 3D
+                </span>
+              </h3>
+              <p className="text-xs text-slate-400">Sesuaikan properti optik kaca dan efek bias specular secara real-time</p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-slate-300 hover:text-white transition"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Presets */}
+        <div className="my-5">
+          <label className="text-xs font-medium text-slate-300 block mb-2">Preset Material Kaca</label>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {[
+              { id: 'ios26', name: 'iOS 26 Liquid' },
+              { id: 'frosted', name: 'Frosted Glass' },
+              { id: 'deepDark', name: 'Deep Midnight' },
+              { id: 'crystal', name: 'Crystal Sheen' },
+            ].map((p) => (
+              <button
+                key={p.id}
+                onClick={() => handlePresetSelect(p.id as any)}
+                className={`py-2 px-3 rounded-xl text-xs font-medium border transition-all text-center ${
+                  settings.activePreset === p.id
+                    ? 'bg-blue-500/30 border-blue-400/60 text-white shadow-lg shadow-blue-500/20'
+                    : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
+                }`}
+              >
+                {p.name}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Controls */}
+        <div className="space-y-4">
+          {/* Specular Rim */}
+          <div className="space-y-1.5 bg-white/[0.03] p-3 rounded-2xl border border-white/5">
+            <div className="flex justify-between text-xs font-medium">
+              <span className="flex items-center gap-1.5 text-slate-200">
+                <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                Specular Rim & Glare Intensity
+              </span>
+              <span className="font-mono text-blue-300">{settings.specularIntensity}%</span>
+            </div>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              value={settings.specularIntensity}
+              onChange={(e) => onUpdateSettings({ ...settings, specularIntensity: Number(e.target.value) })}
+              className="w-full accent-blue-400 h-1.5 bg-slate-800 rounded-lg cursor-pointer"
+            />
+          </div>
+
+          {/* Blur */}
+          <div className="space-y-1.5 bg-white/[0.03] p-3 rounded-2xl border border-white/5">
+            <div className="flex justify-between text-xs font-medium">
+              <span className="flex items-center gap-1.5 text-slate-200">
+                <Eye className="w-3.5 h-3.5 text-sky-300" />
+                Backdrop Blur (Frosted Diffusion)
+              </span>
+              <span className="font-mono text-blue-300">{settings.blur}px</span>
+            </div>
+            <input
+              type="range"
+              min="8"
+              max="48"
+              value={settings.blur}
+              onChange={(e) => onUpdateSettings({ ...settings, blur: Number(e.target.value) })}
+              className="w-full accent-blue-400 h-1.5 bg-slate-800 rounded-lg cursor-pointer"
+            />
+          </div>
+
+          {/* Translucency */}
+          <div className="space-y-1.5 bg-white/[0.03] p-3 rounded-2xl border border-white/5">
+            <div className="flex justify-between text-xs font-medium">
+              <span className="flex items-center gap-1.5 text-slate-200">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-300" />
+                Glass Translucency & Opacity
+              </span>
+              <span className="font-mono text-blue-300">{settings.translucency}%</span>
+            </div>
+            <input
+              type="range"
+              min="20"
+              max="95"
+              value={settings.translucency}
+              onChange={(e) => onUpdateSettings({ ...settings, translucency: Number(e.target.value) })}
+              className="w-full accent-blue-400 h-1.5 bg-slate-800 rounded-lg cursor-pointer"
+            />
+          </div>
+
+          {/* Dark Tint */}
+          <div className="space-y-1.5 bg-white/[0.03] p-3 rounded-2xl border border-white/5">
+            <div className="flex justify-between text-xs font-medium">
+              <span className="text-slate-200">Dark Tint Density</span>
+              <span className="font-mono text-blue-300">{settings.darkTint}%</span>
+            </div>
+            <input
+              type="range"
+              min="10"
+              max="85"
+              value={settings.darkTint}
+              onChange={(e) => onUpdateSettings({ ...settings, darkTint: Number(e.target.value) })}
+              className="w-full accent-blue-400 h-1.5 bg-slate-800 rounded-lg cursor-pointer"
+            />
+          </div>
+
+          {/* 3D Tilt Toggle */}
+          <div className="flex items-center justify-between bg-white/[0.03] p-3 rounded-2xl border border-white/5">
+            <div>
+              <span className="text-xs font-medium text-slate-200 block">3D Parallax Tilt Effect</span>
+              <span className="text-[11px] text-slate-400">Efek kemiringan 3D kartu saat kursor bergerak</span>
+            </div>
+            <button
+              onClick={() => onUpdateSettings({ ...settings, tilt3d: !settings.tilt3d })}
+              className={`w-12 h-6 rounded-full transition-colors relative ${
+                settings.tilt3d ? 'bg-blue-500' : 'bg-slate-700'
+              }`}
+            >
+              <span
+                className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${
+                  settings.tilt3d ? 'translate-x-6' : ''
+                }`}
+              />
+            </button>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="mt-6 flex items-center justify-between pt-4 border-t border-white/10">
+          <button
+            onClick={() => handlePresetSelect('ios26')}
+            className="text-xs text-slate-400 hover:text-white flex items-center gap-1 transition"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            Reset Default
+          </button>
+          <GlassButton size="md" variant="primary" onClick={onClose}>
+            Terapkan Tampilan
+          </GlassButton>
+        </div>
+      </div>
+    </div>
+  );
+};

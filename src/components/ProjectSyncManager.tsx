@@ -1,0 +1,649 @@
+import React, { useState, useEffect } from 'react';
+import { User } from 'firebase/auth';
+import { GlassSettings } from '../types';
+import {
+  FileSpreadsheet,
+  CheckCircle2,
+  ExternalLink,
+  Copy,
+  Plus,
+  RefreshCw,
+  FolderOpen,
+  HelpCircle,
+  Sparkles,
+  Layers,
+  ArrowRight,
+  ShieldCheck,
+  Check,
+  AlertCircle
+} from 'lucide-react';
+import {
+  extractSpreadsheetId,
+  getSpreadsheetDetails,
+  createNewProjectSpreadsheet,
+  listUserSpreadsheets
+} from '../lib/sheetsApi';
+import { getAccessToken } from '../lib/firebase';
+
+interface ProjectSyncManagerProps {
+  user: User | null;
+  currentSpreadsheetId: string;
+  currentSheetName: string;
+  onSaveProjectConfig: (spreadsheetId: string, sheetName: string) => void;
+  onLogin: () => Promise<void>;
+  onSyncNow: () => Promise<void>;
+  isSyncing: boolean;
+  settings?: GlassSettings;
+  onClose?: () => void;
+}
+
+export const ProjectSyncManager: React.FC<ProjectSyncManagerProps> = ({
+  user,
+  currentSpreadsheetId,
+  currentSheetName,
+  onSaveProjectConfig,
+  onLogin,
+  onSyncNow,
+  isSyncing,
+  onClose
+}) => {
+  const [activeTab, setActiveTab] = useState<'picker' | 'manual' | 'create' | 'guide'>('picker');
+  const [inputUrlOrId, setInputUrlOrId] = useState(currentSpreadsheetId);
+  const [inputSheetName, setInputSheetName] = useState(currentSheetName);
+
+  // Drive Spreadsheet list
+  const [driveFiles, setDriveFiles] = useState<Array<{ id: string; name: string; modifiedTime?: string; webViewLink?: string }>>([]);
+  const [isLoadingFiles, setIsLoadingFiles] = useState(false);
+  const [driveError, setDriveError] = useState<string | null>(null);
+
+  // Create new project state
+  const [newFileTitle, setNewFileTitle] = useState('My Liquid Financial 2026');
+  const [isCreatingNew, setIsCreatingNew] = useState(false);
+  const [createdUrl, setCreatedUrl] = useState<string | null>(null);
+
+  // Validation/Testing state
+  const [validating, setValidating] = useState(false);
+  const [validationResult, setValidationResult] = useState<{
+    success: boolean;
+    title?: string;
+    sheets?: string[];
+    error?: string;
+  } | null>(null);
+
+  // Copy helper feedback
+  const [copiedTemplate, setCopiedTemplate] = useState(false);
+
+  // Load drive files when authenticated and picker tab active
+  const loadDriveFiles = async () => {
+    if (!user) return;
+    try {
+      setIsLoadingFiles(true);
+      setDriveError(null);
+      const token = await getAccessToken();
+      if (!token) {
+        setDriveError('Token akses Google tidak tersedia. Silakan masuk kembali.');
+        return;
+      }
+      const files = await listUserSpreadsheets(token);
+      setDriveFiles(files);
+    } catch (err: any) {
+      console.error('Error fetching drive spreadsheets:', err);
+      setDriveError(err?.message || 'Gagal memuat daftar file spreadsheet Google Drive.');
+    } finally {
+      setIsLoadingFiles(false);
+    }
+  };
+
+  useEffect(() => {
+    if (user && activeTab === 'picker') {
+      loadDriveFiles();
+    }
+  }, [user, activeTab]);
+
+  // Test access to entered spreadsheet
+  const handleTestConnection = async (targetId: string) => {
+    const cleanId = extractSpreadsheetId(targetId);
+    if (!cleanId) {
+      setValidationResult({ success: false, error: 'Masukkan ID atau URL Google Spreadsheet yang valid.' });
+      return;
+    }
+    try {
+      setValidating(true);
+      setValidationResult(null);
+      const token = await getAccessToken();
+      if (!token) {
+        setValidationResult({
+          success: false,
+          error: 'Belum login ke Google Akun. Silakan klik "Sign in with Google" terlebih dahulu.'
+        });
+        return;
+      }
+      const details = await getSpreadsheetDetails(cleanId, token);
+      const sheetNames = details.sheets?.map((s: any) => s.properties?.title) || [];
+      setValidationResult({
+        success: true,
+        title: details.properties?.title || 'Spreadsheet Valid',
+        sheets: sheetNames
+      });
+      if (sheetNames.length > 0 && !sheetNames.includes(inputSheetName)) {
+        setInputSheetName(sheetNames[0]);
+      }
+    } catch (err: any) {
+      setValidationResult({
+        success: false,
+        error: err?.message || 'Gagal mengakses spreadsheet. Pastikan akun Google yang Anda gunakan memiliki izin edit.'
+      });
+    } finally {
+      setValidating(false);
+    }
+  };
+
+  // Create new project with matching template structure
+  const handleCreateNewProject = async () => {
+    try {
+      setIsCreatingNew(true);
+      setValidationResult(null);
+      const token = await getAccessToken();
+      if (!token) {
+        alert('Silakan login ke Google terlebih dahulu.');
+        return;
+      }
+      const newSheet = await createNewProjectSpreadsheet(newFileTitle, token);
+      setInputUrlOrId(newSheet.spreadsheetId);
+      setInputSheetName('Sheet1');
+      setCreatedUrl(newSheet.spreadsheetUrl);
+      onSaveProjectConfig(newSheet.spreadsheetId, 'Sheet1');
+      setValidationResult({
+        success: true,
+        title: newFileTitle,
+        sheets: ['Sheet1']
+      });
+      // Refresh list
+      loadDriveFiles();
+    } catch (err: any) {
+      console.error('Create error:', err);
+      alert(`Gagal membuat project baru: ${err?.message}`);
+    } finally {
+      setIsCreatingNew(false);
+    }
+  };
+
+  // Save manual/picker selection
+  const handleSaveAndSync = async (targetId?: string, targetSheet?: string) => {
+    const idToSave = extractSpreadsheetId(targetId || inputUrlOrId);
+    const sheetToSave = targetSheet || inputSheetName || 'Sheet1';
+
+    if (!idToSave) {
+      alert('Masukkan link atau ID Google Spreadsheet terlebih dahulu.');
+      return;
+    }
+
+    onSaveProjectConfig(idToSave, sheetToSave);
+    await onSyncNow();
+    if (onClose) onClose();
+  };
+
+  const copyHeaderSample = () => {
+    const headerText = 'Bulan\tKategori\tAkun\tTipe\tJumlah\tCatatan\nSeptember\tSalary\tBank BCA\tIncome\tRp 5.916.058\tGaji Pokok';
+    navigator.clipboard.writeText(headerText);
+    setCopiedTemplate(true);
+    setTimeout(() => setCopiedTemplate(false), 2000);
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* User Status Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-2xl bg-white/[0.04] border border-white/10">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
+            <FileSpreadsheet className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h4 className="text-xs font-bold text-white tracking-tight">Akun Google Aktif</h4>
+              <span
+                className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${
+                  user
+                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                    : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                }`}
+              >
+                {user ? 'Terautentikasi' : 'Belum Login'}
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-300 mt-0.5">
+              {user ? (
+                <span>
+                  Login sebagai: <strong className="text-white">{user.email}</strong>
+                </span>
+              ) : (
+                'Masuk dengan akun Google yang memiliki file spreadsheet target'
+              )}
+            </p>
+          </div>
+        </div>
+
+        {!user ? (
+          <button
+            onClick={() => onLogin()}
+            disabled={isSyncing}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-full bg-white hover:bg-slate-100 text-slate-900 font-bold text-xs shadow-md active:scale-95 transition"
+          >
+            <svg className="w-3.5 h-3.5" viewBox="0 0 48 48">
+              <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+              <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+              <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+              <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
+            </svg>
+            Sign in with Google
+          </button>
+        ) : (
+          <div className="flex items-center gap-1.5 text-xs text-emerald-400 font-semibold">
+            <CheckCircle2 className="w-4 h-4" />
+            <span>Siap Sinkron</span>
+          </div>
+        )}
+      </div>
+
+      {/* Sub-Tabs: Pilih File, Masukkan Link, Buat Baru, Panduan Setting */}
+      <div className="flex items-center gap-1 p-1 rounded-2xl bg-black/30 border border-white/10 overflow-x-auto no-scrollbar">
+        <button
+          onClick={() => setActiveTab('picker')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition ${
+            activeTab === 'picker'
+              ? 'bg-blue-600 text-white shadow'
+              : 'text-slate-400 hover:text-white hover:bg-white/5'
+          }`}
+        >
+          <FolderOpen className="w-3.5 h-3.5" />
+          <span>1. Pilih dari Google Drive</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('manual')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition ${
+            activeTab === 'manual'
+              ? 'bg-blue-600 text-white shadow'
+              : 'text-slate-400 hover:text-white hover:bg-white/5'
+          }`}
+        >
+          <Layers className="w-3.5 h-3.5" />
+          <span>2. Paste Link / ID URL</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('create')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition ${
+            activeTab === 'create'
+              ? 'bg-blue-600 text-white shadow'
+              : 'text-slate-400 hover:text-white hover:bg-white/5'
+          }`}
+        >
+          <Plus className="w-3.5 h-3.5" />
+          <span>3. Buat Sheet Otomatis</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('guide')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition ${
+            activeTab === 'guide'
+              ? 'bg-blue-600 text-white shadow'
+              : 'text-slate-400 hover:text-white hover:bg-white/5'
+          }`}
+        >
+          <HelpCircle className="w-3.5 h-3.5 text-amber-300" />
+          <span>Panduan Template</span>
+        </button>
+      </div>
+
+      {/* TAB 1: PICKER FROM GOOGLE DRIVE */}
+      {activeTab === 'picker' && (
+        <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/10 space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <h5 className="text-xs font-bold text-white">Daftar Spreadsheet di Google Drive Anda</h5>
+              <p className="text-[11px] text-slate-400">
+                Pilih project sheet yang ingin disinkronkan ke aplikasi (1-klik langsung tersambung)
+              </p>
+            </div>
+            {user && (
+              <button
+                onClick={loadDriveFiles}
+                disabled={isLoadingFiles}
+                className="p-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white text-xs flex items-center gap-1 transition"
+                title="Muat ulang daftar file"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isLoadingFiles ? 'animate-spin' : ''}`} />
+                <span className="text-[10px]">Refresh</span>
+              </button>
+            )}
+          </div>
+
+          {!user ? (
+            <div className="text-center py-6 px-4 rounded-xl bg-white/[0.02] border border-dashed border-white/10">
+              <FolderOpen className="w-8 h-8 text-slate-500 mx-auto mb-2" />
+              <p className="text-xs text-slate-300 font-semibold mb-1">
+                Silakan login dengan akun Google terlebih dahulu
+              </p>
+              <p className="text-[11px] text-slate-400 max-w-sm mx-auto mb-3">
+                Aplikasi akan mendeteksi seluruh file Google Spreadsheet di Drive akun tersebut agar Anda dapat langsung memilihnya tanpa mengetik ID.
+              </p>
+              <button
+                onClick={() => onLogin()}
+                className="px-4 py-1.5 rounded-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow"
+              >
+                Sign in with Google
+              </button>
+            </div>
+          ) : isLoadingFiles ? (
+            <div className="flex items-center justify-center gap-2 py-8 text-slate-400 text-xs">
+              <RefreshCw className="w-4 h-4 animate-spin text-blue-400" />
+              <span>Memindai Google Drive Anda...</span>
+            </div>
+          ) : driveError ? (
+            <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold">Pemberitahuan Akses Drive:</p>
+                <p className="text-[11px] opacity-90 mt-0.5">{driveError}</p>
+                <p className="text-[10px] text-slate-400 mt-1">
+                  Anda tetap bisa menggunakan tab <strong>"2. Paste Link / ID URL"</strong> untuk menautkan spreadsheet secara langsung.
+                </p>
+              </div>
+            </div>
+          ) : driveFiles.length === 0 ? (
+            <div className="text-center py-6 text-xs text-slate-400">
+              <p>Tidak ada Google Spreadsheet yang ditemukan di akun Google ini.</p>
+              <button
+                onClick={() => setActiveTab('create')}
+                className="mt-2 text-sky-400 hover:underline inline-flex items-center gap-1 font-semibold"
+              >
+                <Plus className="w-3.5 h-3.5" /> Buat spreadsheet template otomatis sekarang
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-1.5 max-h-56 overflow-y-auto no-scrollbar pr-1">
+              {driveFiles.map((file) => {
+                const isCurrent = extractSpreadsheetId(currentSpreadsheetId) === file.id;
+                return (
+                  <div
+                    key={file.id}
+                    className={`flex items-center justify-between p-2.5 rounded-xl border transition ${
+                      isCurrent
+                        ? 'bg-blue-600/20 border-blue-500/50'
+                        : 'bg-white/[0.03] border-white/10 hover:bg-white/[0.07]'
+                    }`}
+                  >
+                    <div className="min-w-0 flex items-center gap-2.5">
+                      <div className="w-7 h-7 rounded-lg bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
+                        <FileSpreadsheet className="w-3.5 h-3.5" />
+                      </div>
+                      <div className="truncate">
+                        <h6 className="text-xs font-semibold text-white truncate">{file.name}</h6>
+                        <span className="text-[10px] text-slate-400 font-mono">
+                          ID: {file.id.slice(0, 14)}...
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {file.webViewLink && (
+                        <a
+                          href={file.webViewLink}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="p-1 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white"
+                          title="Buka di tab baru"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      )}
+                      <button
+                        onClick={() => handleSaveAndSync(file.id, 'Sheet1')}
+                        disabled={isSyncing}
+                        className={`px-3 py-1 rounded-lg text-xs font-bold transition active:scale-95 ${
+                          isCurrent
+                            ? 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/40'
+                            : 'bg-blue-600 hover:bg-blue-500 text-white shadow'
+                        }`}
+                      >
+                        {isCurrent ? 'Aktif Terhubung' : 'Pilih & Hubungkan'}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB 2: MANUAL URL / SPREADSHEET ID INPUT */}
+      {activeTab === 'manual' && (
+        <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/10 space-y-3">
+          <div>
+            <label className="text-xs font-bold text-white block mb-1">
+              Link URL atau ID Google Spreadsheet:
+            </label>
+            <input
+              type="text"
+              placeholder="https://docs.google.com/spreadsheets/d/1abcXYZ123.../edit atau cukup salin ID-nya"
+              value={inputUrlOrId}
+              onChange={(e) => {
+                setInputUrlOrId(e.target.value);
+                setValidationResult(null);
+              }}
+              className="w-full px-3 py-2 rounded-xl text-xs bg-black/40 border border-white/20 text-white font-mono focus:border-blue-400 outline-none"
+            />
+            <p className="text-[10px] text-slate-400 mt-1">
+              Bisa langsung copy-paste alamat URL Google Sheet dari address bar browser Anda.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-bold text-white block mb-1">
+                Nama Tab Sheet:
+              </label>
+              <input
+                type="text"
+                placeholder="Sheet1"
+                value={inputSheetName}
+                onChange={(e) => setInputSheetName(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl text-xs bg-black/40 border border-white/20 text-white focus:border-blue-400 outline-none"
+              />
+              <p className="text-[10px] text-slate-400 mt-0.5">
+                Default: <code>Sheet1</code>
+              </p>
+            </div>
+
+            <div className="flex items-end gap-2">
+              <button
+                type="button"
+                onClick={() => handleTestConnection(inputUrlOrId)}
+                disabled={validating || !inputUrlOrId}
+                className="w-full py-2 px-3 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-xs font-semibold text-slate-200 transition flex items-center justify-center gap-1.5 disabled:opacity-40"
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-sky-400" />
+                <span>{validating ? 'Menguji...' : 'Uji Izin Akses'}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Validation Result Box */}
+          {validationResult && (
+            <div
+              className={`p-3 rounded-xl text-xs border ${
+                validationResult.success
+                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-200'
+                  : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+              }`}
+            >
+              {validationResult.success ? (
+                <div className="space-y-1">
+                  <p className="font-bold flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    Koneksi Berhasil! Judul: "{validationResult.title}"
+                  </p>
+                  <p className="text-[11px] text-slate-300">
+                    Tab yang terdeteksi: {validationResult.sheets?.join(', ')}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  <p className="font-bold flex items-center gap-1.5">
+                    <AlertCircle className="w-4 h-4 text-rose-400" />
+                    Gagal Mengakses:
+                  </p>
+                  <p className="text-[11px]">{validationResult.error}</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="pt-2 flex items-center justify-end gap-2">
+            <button
+              onClick={() => handleSaveAndSync()}
+              disabled={isSyncing}
+              className="px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs shadow-lg flex items-center gap-2 active:scale-95 transition disabled:opacity-50"
+            >
+              <Check className="w-4 h-4" />
+              <span>Simpan & Sinkronkan Sekarang</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 3: CREATE NEW TEMPLATE SPREADSHEET */}
+      {activeTab === 'create' && (
+        <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/10 space-y-3">
+          <div>
+            <h5 className="text-xs font-bold text-white flex items-center gap-1.5">
+              <Sparkles className="w-4 h-4 text-sky-400" />
+              Buat File Google Spreadsheet Otomatis
+            </h5>
+            <p className="text-[11px] text-slate-400 mt-0.5">
+              Aplikasi akan langsung membuatkan file baru di akun Google Drive Anda dengan struktur kolom (Bulan, Kategori, Akun, Tipe, Jumlah, Catatan) yang sudah siap 100%.
+            </p>
+          </div>
+
+          <div>
+            <label className="text-xs font-bold text-white block mb-1">
+              Nama Dokumen Baru:
+            </label>
+            <input
+              type="text"
+              value={newFileTitle}
+              onChange={(e) => setNewFileTitle(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl text-xs bg-black/40 border border-white/20 text-white font-medium focus:border-blue-400 outline-none"
+            />
+          </div>
+
+          {createdUrl && (
+            <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-200 text-xs flex items-center justify-between">
+              <span className="flex items-center gap-1.5 font-medium">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                File berhasil dibuat & otomatis ditautkan!
+              </span>
+              <a
+                href={createdUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-sky-400 hover:underline flex items-center gap-1 text-[11px] font-bold"
+              >
+                Buka di Google Sheets <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+          )}
+
+          <div className="pt-2 flex justify-end">
+            <button
+              onClick={handleCreateNewProject}
+              disabled={isCreatingNew || !user}
+              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-lg flex items-center gap-2 active:scale-95 transition disabled:opacity-50"
+            >
+              <Plus className="w-4 h-4" />
+              <span>{isCreatingNew ? 'Sedang Membuat File...' : 'Buat & Hubungkan Otomatis'}</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 4: PANDUAN SETTING FORMAT TEMPLATE */}
+      {activeTab === 'guide' && (
+        <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/10 space-y-4 text-xs">
+          <div>
+            <h5 className="font-bold text-white flex items-center gap-1.5 text-sm">
+              <HelpCircle className="w-4 h-4 text-amber-400" />
+              Panduan Menghubungkan Google Sheet (Akun / File Berbeda)
+            </h5>
+            <p className="text-[11px] text-slate-300 mt-1">
+              Anda bebas menggunakan file Google Sheet dari akun Google mana pun tanpa perlu mengubah baris kode aplikasi sama sekali.
+            </p>
+          </div>
+
+          {/* Step by step */}
+          <div className="space-y-2.5 text-slate-300">
+            <div className="p-3 rounded-xl bg-black/30 border border-white/10 flex items-start gap-3">
+              <span className="w-6 h-6 rounded-full bg-blue-500/20 text-blue-300 flex items-center justify-center font-bold shrink-0 text-xs">
+                1
+              </span>
+              <div>
+                <strong className="text-white">Login dengan Google Akun Anda</strong>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Klik tombol <em>Sign in with Google</em>. Jika Anda ingin mengganti akun, cukup klik <strong>Keluar</strong> lalu login ulang dengan akun Google lainnya.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3 rounded-xl bg-black/30 border border-white/10 flex items-start gap-3">
+              <span className="w-6 h-6 rounded-full bg-blue-500/20 text-blue-300 flex items-center justify-center font-bold shrink-0 text-xs">
+                2
+              </span>
+              <div>
+                <strong className="text-white">Format Judul Kolom Baris Pertama (Row 1)</strong>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Pastikan sheet target memiliki baris header tepat di <code>A1:F1</code> dengan nama kolom berikut:
+                </p>
+                <div className="mt-2 p-2 rounded-lg bg-black/60 font-mono text-[11px] text-emerald-300 flex items-center justify-between overflow-x-auto">
+                  <span>A: Bulan | B: Kategori | C: Akun | D: Tipe | E: Jumlah | F: Catatan</span>
+                  <button
+                    onClick={copyHeaderSample}
+                    className="ml-2 px-2 py-1 rounded bg-white/10 hover:bg-white/20 text-[10px] text-white flex items-center gap-1 shrink-0"
+                  >
+                    {copiedTemplate ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                    <span>{copiedTemplate ? 'Tersalin' : 'Copy Header'}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-3 rounded-xl bg-black/30 border border-white/10 flex items-start gap-3">
+              <span className="w-6 h-6 rounded-full bg-blue-500/20 text-blue-300 flex items-center justify-center font-bold shrink-0 text-xs">
+                3
+              </span>
+              <div>
+                <strong className="text-white">Pilih File atau Salin Link Spreadsheet</strong>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Pilih file secara langsung dari tab <strong>"1. Pilih dari Google Drive"</strong> ATAU salin link dari address bar browser lalu paste di tab <strong>"2. Paste Link / ID URL"</strong>.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3 rounded-xl bg-black/30 border border-white/10 flex items-start gap-3">
+              <span className="w-6 h-6 rounded-full bg-blue-500/20 text-blue-300 flex items-center justify-center font-bold shrink-0 text-xs">
+                4
+              </span>
+              <div>
+                <strong className="text-white">Sinkronisasi 2-Arah Berjalan Otomatis</strong>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Setiap kali Anda menambah transaksi di tab <em>Input Cashflow</em>, data akan otomatis terkirim ke Google Sheets. Tekan tombol <em>Tarik</em> kapan saja untuk mengambil update terbaru.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
