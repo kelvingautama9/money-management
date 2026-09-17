@@ -69,6 +69,14 @@ export async function fetchSheetValues(spreadsheetId: string, range: string, acc
 }
 
 /**
+ * Formats a sheet name and range into a safe Google Sheets A1 notation string with single quotes.
+ */
+export function formatSheetRange(sheetName: string, cellRange: string): string {
+  const clean = sheetName.replace(/'/g, "''");
+  return `'${clean}'!${cellRange}`;
+}
+
+/**
  * Appends a transaction row to Google Sheets.
  */
 export async function appendRowToSheet(
@@ -79,7 +87,7 @@ export async function appendRowToSheet(
 ) {
   const formattedJumlah = formatRupiah(tx.jumlah);
   const rowValues = [[tx.bulan, tx.kategori, tx.akun, tx.tipe, formattedJumlah, tx.catatan || '']];
-  const range = encodeURIComponent(`${sheetName}!A:F`);
+  const range = encodeURIComponent(formatSheetRange(sheetName, 'A:F'));
 
   const res = await fetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
@@ -112,7 +120,7 @@ export async function updateRowInSheet(
 ) {
   const formattedJumlah = formatRupiah(tx.jumlah);
   const rowValues = [[tx.bulan, tx.kategori, tx.akun, tx.tipe, formattedJumlah, tx.catatan || '']];
-  const range = encodeURIComponent(`${sheetName}!A${rowIndex}:F${rowIndex}`);
+  const range = encodeURIComponent(formatSheetRange(sheetName, `A${rowIndex}:F${rowIndex}`));
 
   const res = await fetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}?valueInputOption=USER_ENTERED`,
@@ -142,7 +150,7 @@ export async function clearRowInSheet(
   rowIndex: number,
   accessToken: string
 ) {
-  const range = encodeURIComponent(`${sheetName}!A${rowIndex}:F${rowIndex}`);
+  const range = encodeURIComponent(formatSheetRange(sheetName, `A${rowIndex}:F${rowIndex}`));
   const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}:clear`, {
     method: 'POST',
     headers: {

@@ -2,6 +2,8 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import {
   getAuth,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   GoogleAuthProvider,
   onAuthStateChanged,
   signOut,
@@ -21,36 +23,103 @@ provider.setCustomParameters({
   prompt: 'select_account'
 });
 
-// Cache the access token in memory as instructed by security guidelines
-let cachedAccessToken: string | null = null;
+const TOKEN_STORAGE_KEY = 'kelvin_financial_google_access_token';
+const TOKEN_EXPIRY_KEY = 'kelvin_financial_google_token_expiry';
+
+// Helper to save token persistently in localStorage
+export const saveTokenToStorage = (token: string, expiresInSeconds = 3600) => {
+  try {
+    localStorage.setItem(TOKEN_STORAGE_KEY, token);
+    const expiryTimestamp = Date.now() + (expiresInSeconds - 120) * 1000;
+    localStorage.setItem(TOKEN_EXPIRY_KEY, expiryTimestamp.toString());
+  } catch (e) {
+    console.warn('Failed to save access token to localStorage:', e);
+  }
+};
+
+// Helper to retrieve token from storage if not expired
+export const getStoredToken = (): string | null => {
+  try {
+    const token = localStorage.getItem(TOKEN_STORAGE_KEY);
+    const expiry = localStorage.getItem(TOKEN_EXPIRY_KEY);
+    if (!token) return null;
+    if (expiry && Date.now() > parseInt(expiry, 10)) {
+      // Token is expired
+      return null;
+    }
+    return token;
+  } catch (e) {
+    return null;
+  }
+};
+
+// Helper to clear token storage
+export const clearStoredToken = () => {
+  try {
+    localStorage.removeItem(TOKEN_STORAGE_KEY);
+    localStorage.removeItem(TOKEN_EXPIRY_KEY);
+  } catch (e) {}
+};
+
+// In-memory token cache
+let cachedAccessToken: string | null = getStoredToken();
 let isSigningIn = false;
 
 /**
- * Initialize auth state listener. Clears cached token upon logout.
+ * Initialize auth state listener.
+ * Checks redirect results and restores session token automatically.
  */
 export const initAuth = (
   onAuthSuccess?: (user: User, token: string) => void,
   onAuthFailure?: () => void
 ) => {
+  // 1. Process redirect result if page was reloaded from signInWithRedirect
+  getRedirectResult(auth)
+    .then((result) => {
+      if (result) {
+        const credential = GoogleAuthProvider.credentialFromResult(result);
+        if (credential?.accessToken) {
+          cachedAccessToken = credential.accessToken;
+          saveTokenToStorage(credential.accessToken);
+          if (onAuthSuccess) {
+            onAuthSuccess(result.user, credential.accessToken);
+          }
+        }
+      }
+    })
+    .catch((err) => {
+      console.warn('Firebase getRedirectResult error:', err);
+    });
+
+  // 2. Listen to ongoing auth state
   return onAuthStateChanged(auth, async (user: User | null) => {
     if (user) {
-      if (cachedAccessToken) {
-        if (onAuthSuccess) onAuthSuccess(user, cachedAccessToken);
-      } else if (!isSigningIn) {
-        if (onAuthFailure) onAuthFailure();
+      const token = cachedAccessToken || getStoredToken();
+      if (token) {
+        cachedAccessToken = token;
+        if (onAuthSuccess) onAuthSuccess(user, token);
+      } else {
+        // User is still authenticated with Firebase! Never drop user to null
+        if (onAuthSuccess) onAuthSuccess(user, '');
       }
     } else {
       cachedAccessToken = null;
+      clearStoredToken();
       if (onAuthFailure) onAuthFailure();
     }
   });
 };
 
 /**
- * Perform Google Sign-In with popup.
- * Captures OAuth access token for Google Sheets API.
+ * Perform Google Sign-In.
+ * Automatically tries signInWithPopup; if blocked by browser, seamlessly falls back to signInWithRedirect.
  */
 export const googleSignIn = async (): Promise<{ user: User; accessToken: string } | null> => {
+  if (isSigningIn) {
+    console.warn('Google Sign-In already in progress...');
+    return null;
+  }
+
   try {
     isSigningIn = true;
     const result = await signInWithPopup(auth, provider);
@@ -59,8 +128,29 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string 
       throw new Error('Gagal mendapatkan token akses dari Google.');
     }
     cachedAccessToken = credential.accessToken;
+    saveTokenToStorage(credential.accessToken);
     return { user: result.user, accessToken: cachedAccessToken };
-  } catch (error: unknown) {
+  } catch (error: any) {
+    // If browser popup blocker intercepts (common in Firefox / Safari / Mobile)
+    if (
+      error?.code === 'auth/popup-blocked' ||
+      error?.code === 'auth/cancelled-popup-request'
+    ) {
+      console.warn('Popup blocked/cancelled by browser. Falling back to signInWithRedirect...', error);
+      try {
+        await signInWithRedirect(auth, provider);
+        return null;
+      } catch (redirectErr) {
+        console.error('Redirect sign-in failed:', redirectErr);
+        throw redirectErr;
+      }
+    }
+
+    if (error?.code === 'auth/popup-closed-by-user') {
+      console.log('Jendela login Google ditutup oleh pengguna.');
+      return null;
+    }
+
     console.error('Google Sign-in error:', error);
     throw error;
   } finally {
@@ -69,10 +159,23 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string 
 };
 
 /**
- * Retrieve cached in-memory access token.
+ * Perform direct redirect sign-in (for users with strict popup blockers)
+ */
+export const googleSignInRedirect = async (): Promise<void> => {
+  await signInWithRedirect(auth, provider);
+};
+
+/**
+ * Retrieve active access token (from memory or persistent storage)
  */
 export const getAccessToken = async (): Promise<string | null> => {
-  return cachedAccessToken;
+  if (cachedAccessToken) return cachedAccessToken;
+  const stored = getStoredToken();
+  if (stored) {
+    cachedAccessToken = stored;
+    return stored;
+  }
+  return null;
 };
 
 /**
@@ -80,6 +183,11 @@ export const getAccessToken = async (): Promise<string | null> => {
  */
 export const setCachedAccessToken = (token: string | null) => {
   cachedAccessToken = token;
+  if (token) {
+    saveTokenToStorage(token);
+  } else {
+    clearStoredToken();
+  }
 };
 
 /**
@@ -88,4 +196,6 @@ export const setCachedAccessToken = (token: string | null) => {
 export const logout = async () => {
   await signOut(auth);
   cachedAccessToken = null;
+  clearStoredToken();
 };
+

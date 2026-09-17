@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { GlassContainer } from './GlassContainer';
 import { GlassSettings, BudgetCategory, AccountBalance, Transaction, InvestmentAsset, InvestmentHistory } from '../types';
 import { formatRupiah } from '../lib/sheetsApi';
+import { triggerHaptic } from '../lib/haptics';
 import {
   Wallet,
   ArrowDownLeft,
@@ -114,7 +115,10 @@ export const ExecutiveSummary: React.FC<ExecutiveSummaryProps> = ({
               </span>
             </div>
             <button
-              onClick={() => setHideBalance(!hideBalance)}
+              onClick={() => {
+                triggerHaptic('light');
+                setHideBalance(!hideBalance);
+              }}
               className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 hover:text-white transition"
               title={hideBalance ? 'Tampilkan Saldo' : 'Sembunyikan Saldo'}
             >
@@ -290,7 +294,10 @@ export const ExecutiveSummary: React.FC<ExecutiveSummaryProps> = ({
       {/* QUICK ACTIONS ROW (Image 4 Clean Interface Match) */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <button
-          onClick={() => onNavigate?.('cashflow')}
+          onClick={() => {
+            triggerHaptic('selection');
+            onNavigate?.('cashflow');
+          }}
           className="flex items-center gap-3 p-3.5 rounded-2xl bg-white/[0.04] hover:bg-white/[0.09] border border-white/10 transition-all text-left active:scale-[0.98]"
         >
           <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
@@ -303,7 +310,10 @@ export const ExecutiveSummary: React.FC<ExecutiveSummaryProps> = ({
         </button>
 
         <button
-          onClick={() => onNavigate?.('accounts')}
+          onClick={() => {
+            triggerHaptic('selection');
+            onNavigate?.('accounts');
+          }}
           className="flex items-center gap-3 p-3.5 rounded-2xl bg-white/[0.04] hover:bg-white/[0.09] border border-white/10 transition-all text-left active:scale-[0.98]"
         >
           <div className="w-10 h-10 rounded-xl bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-purple-400 shrink-0">
@@ -316,7 +326,10 @@ export const ExecutiveSummary: React.FC<ExecutiveSummaryProps> = ({
         </button>
 
         <button
-          onClick={() => onNavigate?.('budgeting')}
+          onClick={() => {
+            triggerHaptic('selection');
+            onNavigate?.('budgeting');
+          }}
           className="flex items-center gap-3 p-3.5 rounded-2xl bg-white/[0.04] hover:bg-white/[0.09] border border-white/10 transition-all text-left active:scale-[0.98]"
         >
           <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
@@ -329,7 +342,10 @@ export const ExecutiveSummary: React.FC<ExecutiveSummaryProps> = ({
         </button>
 
         <button
-          onClick={onSyncGoogleSheets}
+          onClick={() => {
+            triggerHaptic('medium');
+            onSyncGoogleSheets?.();
+          }}
           disabled={isSyncing}
           className="flex items-center gap-3 p-3.5 rounded-2xl bg-white/[0.04] hover:bg-white/[0.09] border border-white/10 transition-all text-left active:scale-[0.98] disabled:opacity-50"
         >

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { GlassSettings } from '../types';
 import { User } from 'firebase/auth';
+import { triggerHaptic } from '../lib/haptics';
 import {
   Calendar,
   FileSpreadsheet,
@@ -10,7 +11,8 @@ import {
   RefreshCw,
   CheckCircle2,
   Sparkles,
-  ArrowRight
+  ArrowRight,
+  CloudCheck
 } from 'lucide-react';
 
 interface GoogleSheetMonthTabBarProps {
@@ -22,6 +24,7 @@ interface GoogleSheetMonthTabBarProps {
   user: User | null;
   isSyncing: boolean;
   onSyncCurrentSheet: () => void;
+  onRefreshTabs?: () => void;
   settings: GlassSettings;
   txCountsByMonth?: Record<string, number>;
 }
@@ -35,6 +38,7 @@ export const GoogleSheetMonthTabBar: React.FC<GoogleSheetMonthTabBarProps> = ({
   user,
   isSyncing,
   onSyncCurrentSheet,
+  onRefreshTabs,
   settings,
   txCountsByMonth = {}
 }) => {
@@ -42,9 +46,25 @@ export const GoogleSheetMonthTabBar: React.FC<GoogleSheetMonthTabBarProps> = ({
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [newSheetInput, setNewSheetInput] = useState('');
 
-  const currentCount = txCountsByMonth[currentSheet] || txCountsByMonth[currentSheet.toUpperCase()] || 0;
+  const currentCount =
+    txCountsByMonth[currentSheet] ||
+    txCountsByMonth[currentSheet.toUpperCase()] ||
+    txCountsByMonth[currentSheet.toLowerCase()] ||
+    0;
+
+  const handleOpenModal = () => {
+    triggerHaptic('light');
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    triggerHaptic('light');
+    setIsModalOpen(false);
+    setIsAddingNew(false);
+  };
 
   const handleSelect = (sheet: string) => {
+    triggerHaptic('selection');
     onSelectSheet(sheet);
     // Menghilang / kembali ke button kecil segera setelah dipilih
     setIsModalOpen(false);
@@ -52,9 +72,11 @@ export const GoogleSheetMonthTabBar: React.FC<GoogleSheetMonthTabBarProps> = ({
 
   const handleCreateNewSheet = (e: React.FormEvent) => {
     e.preventDefault();
-    const clean = newSheetInput.trim().toUpperCase();
+    // Mempertahankan penamaan persis seperti input user / Google Sheets (tidak dipaksa huruf kapital)
+    const clean = newSheetInput.trim();
     if (!clean) return;
 
+    triggerHaptic('success');
     if (onAddNewSheet) {
       onAddNewSheet(clean);
     } else {
@@ -65,6 +87,13 @@ export const GoogleSheetMonthTabBar: React.FC<GoogleSheetMonthTabBarProps> = ({
     setIsModalOpen(false);
   };
 
+  const handleRefreshSheetTabs = () => {
+    triggerHaptic('medium');
+    if (onRefreshTabs) {
+      onRefreshTabs();
+    }
+  };
+
   const specular = (settings.specularIntensity || 85) / 100;
 
   return (
@@ -73,7 +102,7 @@ export const GoogleSheetMonthTabBar: React.FC<GoogleSheetMonthTabBarProps> = ({
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setIsModalOpen(true)}
+            onClick={handleOpenModal}
             style={{
               background: 'rgba(15, 23, 42, 0.75)',
               backdropFilter: `blur(${Math.max(settings.blur, 16)}px) saturate(180%)`,
@@ -109,7 +138,10 @@ export const GoogleSheetMonthTabBar: React.FC<GoogleSheetMonthTabBarProps> = ({
 
           {/* Quick Refresh Button for Current Sheet */}
           <button
-            onClick={onSyncCurrentSheet}
+            onClick={() => {
+              triggerHaptic('medium');
+              onSyncCurrentSheet();
+            }}
             disabled={isSyncing}
             className="w-8 h-8 rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 flex items-center justify-center text-slate-300 hover:text-sky-300 transition active:scale-90 disabled:opacity-50"
             title={`Sinkronkan data khusus lembar ${currentSheet}`}
@@ -132,14 +164,14 @@ export const GoogleSheetMonthTabBar: React.FC<GoogleSheetMonthTabBarProps> = ({
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
           {/* Frosted Dark Backdrop */}
           <div
-            onClick={() => setIsModalOpen(false)}
+            onClick={handleCloseModal}
             className="absolute inset-0 bg-black/70 backdrop-blur-md"
           />
 
           {/* Dialog Container */}
           <div
             style={{
-              background: 'rgba(11, 15, 29, 0.88)',
+              background: 'rgba(11, 15, 29, 0.92)',
               backdropFilter: `blur(${Math.max(settings.blur, 28)}px) saturate(190%)`,
               WebkitBackdropFilter: `blur(${Math.max(settings.blur, 28)}px) saturate(190%)`,
               borderColor: `rgba(255, 255, 255, ${0.2 * specular})`,
@@ -154,22 +186,47 @@ export const GoogleSheetMonthTabBar: React.FC<GoogleSheetMonthTabBarProps> = ({
                   <FileSpreadsheet className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-white tracking-tight">
-                    Pilih Bulan Rekapan Google Sheet
+                  <h3 className="text-sm font-bold text-white tracking-tight flex items-center gap-1.5">
+                    <span>Pilih Bulan Rekapan Google Sheet</span>
+                    {isGoogleConnected && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                        Live Sheet
+                      </span>
+                    )}
                   </h3>
                   <p className="text-[11px] text-slate-400">
-                    Otomatis membaca, memuat, dan mengedit isi tab sheet
+                    Menyesuaikan langsung nama & isi tab Google Sheet Anda
                   </p>
                 </div>
               </div>
 
               <button
-                onClick={() => setIsModalOpen(false)}
+                onClick={handleCloseModal}
                 className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 border border-white/15 flex items-center justify-center text-slate-300 hover:text-white transition active:scale-95"
                 title="Tutup"
               >
                 <X className="w-4 h-4" />
               </button>
+            </div>
+
+            {/* Sub-header info & direct Google Sheet tab refresh */}
+            <div className="flex items-center justify-between px-1 text-xs text-slate-400">
+              <span className="text-[11px]">
+                {availableSheets.length} tab terdeteksi di Spreadsheet
+              </span>
+
+              {onRefreshTabs && isGoogleConnected && (
+                <button
+                  type="button"
+                  onClick={handleRefreshSheetTabs}
+                  disabled={isSyncing}
+                  className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-sky-300 hover:text-white hover:underline transition disabled:opacity-50"
+                  title="Perbarui daftar tab langsung dari file Google Sheet"
+                >
+                  <RefreshCw className={`w-3 h-3 ${isSyncing ? 'animate-spin' : ''}`} />
+                  <span>Refresh Tab Sheet</span>
+                </button>
+              )}
             </div>
 
             {/* List of Month Sheets */}
@@ -180,8 +237,14 @@ export const GoogleSheetMonthTabBar: React.FC<GoogleSheetMonthTabBarProps> = ({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {availableSheets.map((sheet) => {
-                  const isActive = sheet.toUpperCase() === currentSheet.toUpperCase();
-                  const count = txCountsByMonth[sheet] || txCountsByMonth[sheet.toUpperCase()] || 0;
+                  const isActive =
+                    sheet === currentSheet ||
+                    sheet.trim().toLowerCase() === currentSheet.trim().toLowerCase();
+                  const count =
+                    txCountsByMonth[sheet] ||
+                    txCountsByMonth[sheet.toUpperCase()] ||
+                    txCountsByMonth[sheet.toLowerCase()] ||
+                    0;
 
                   return (
                     <button
@@ -193,14 +256,15 @@ export const GoogleSheetMonthTabBar: React.FC<GoogleSheetMonthTabBarProps> = ({
                           : 'bg-white/[0.04] hover:bg-white/[0.09] border-white/10 text-slate-200 hover:text-white'
                       }`}
                     >
-                      <div className="flex items-center gap-2.5">
+                      <div className="flex items-center gap-2.5 min-w-0 pr-1">
                         <span
-                          className={`w-2 h-2 rounded-full ${
+                          className={`w-2 h-2 rounded-full shrink-0 ${
                             isActive ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'
                           }`}
                         />
-                        <div>
-                          <p className="text-xs font-bold tracking-wide">{sheet}</p>
+                        <div className="truncate">
+                          {/* Nama tab persis seperti di Google Sheet (contoh: Sept, AGUSTUS, dll) */}
+                          <p className="text-xs font-bold tracking-wide truncate">{sheet}</p>
                           <p className="text-[10px] text-slate-300/80">
                             {count > 0 ? `${count} Transaksi` : '0 Transaksi'}
                           </p>
@@ -221,15 +285,15 @@ export const GoogleSheetMonthTabBar: React.FC<GoogleSheetMonthTabBarProps> = ({
               {isAddingNew ? (
                 <form onSubmit={handleCreateNewSheet} className="mt-3 p-3 rounded-2xl bg-white/[0.05] border border-white/15 space-y-2">
                   <label className="text-[11px] font-semibold text-slate-300 block">
-                    Nama Tab Sheet Baru (Contoh: OKTOBER):
+                    Nama Tab Sheet Baru (Persis seperti di Google Sheets, misal: Sept, Oktober):
                   </label>
                   <div className="flex gap-2">
                     <input
                       type="text"
-                      placeholder="NAMA BULAN"
+                      placeholder="Contoh: Sept atau Oktober"
                       value={newSheetInput}
                       onChange={(e) => setNewSheetInput(e.target.value)}
-                      className="flex-1 px-3 py-1.5 rounded-xl bg-black/40 border border-white/20 text-xs text-white uppercase focus:border-blue-400 outline-none"
+                      className="flex-1 px-3 py-1.5 rounded-xl bg-black/40 border border-white/20 text-xs text-white focus:border-blue-400 outline-none"
                       autoFocus
                     />
                     <button
@@ -240,7 +304,10 @@ export const GoogleSheetMonthTabBar: React.FC<GoogleSheetMonthTabBarProps> = ({
                     </button>
                     <button
                       type="button"
-                      onClick={() => setIsAddingNew(false)}
+                      onClick={() => {
+                        triggerHaptic('light');
+                        setIsAddingNew(false);
+                      }}
                       className="px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-xs text-slate-300"
                     >
                       Batal
@@ -249,7 +316,10 @@ export const GoogleSheetMonthTabBar: React.FC<GoogleSheetMonthTabBarProps> = ({
                 </form>
               ) : (
                 <button
-                  onClick={() => setIsAddingNew(true)}
+                  onClick={() => {
+                    triggerHaptic('light');
+                    setIsAddingNew(true);
+                  }}
                   className="w-full mt-2 py-2.5 px-3 rounded-2xl border border-dashed border-white/20 hover:border-blue-400/50 hover:bg-blue-500/10 text-xs font-semibold text-slate-300 hover:text-sky-300 transition flex items-center justify-center gap-1.5"
                 >
                   <Plus className="w-3.5 h-3.5" />
@@ -261,10 +331,10 @@ export const GoogleSheetMonthTabBar: React.FC<GoogleSheetMonthTabBarProps> = ({
             {/* Footer Action */}
             <div className="pt-3 border-t border-white/10 flex items-center justify-between shrink-0">
               <span className="text-[10px] text-slate-400">
-                Pilih salah satu bulan untuk memuat data
+                Pilih tab untuk langsung sinkronisasi & memuat data
               </span>
               <button
-                onClick={() => setIsModalOpen(false)}
+                onClick={handleCloseModal}
                 className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-xs font-medium text-slate-300 hover:text-white transition"
               >
                 Tutup

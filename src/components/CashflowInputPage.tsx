@@ -11,6 +11,7 @@ import {
   AVAILABLE_ACCOUNTS
 } from '../data/initialData';
 import { formatRupiah } from '../lib/sheetsApi';
+import { triggerHaptic } from '../lib/haptics';
 import {
   PlusCircle,
   ArrowDownLeft,
@@ -79,6 +80,7 @@ export const CashflowInputPage: React.FC<CashflowInputPageProps> = ({
   const quickAmounts = [10000, 25000, 50000, 100000, 250000, 500000, 1000000, 2000000];
 
   const handleAddQuickAmount = (val: number) => {
+    triggerHaptic('light');
     const current = parseFloat(nominal.replace(/[^0-9.-]/g, '')) || 0;
     setNominal((current + val).toString());
   };
@@ -108,6 +110,7 @@ export const CashflowInputPage: React.FC<CashflowInputPageProps> = ({
 
   // Smart auto account match when category changes
   const handleSelectCategory = (kat: string) => {
+    triggerHaptic('selection');
     setSelectedCategory(kat);
     if (kat === 'Listrik') setSelectedAccount('Allo Bank');
     else if (kat === 'Transport') setSelectedAccount('Jago-Transport');
@@ -123,6 +126,7 @@ export const CashflowInputPage: React.FC<CashflowInputPageProps> = ({
     e.preventDefault();
     const amount = parseFloat(nominal.replace(/[^0-9.-]/g, ''));
     if (isNaN(amount) || amount <= 0) {
+      triggerHaptic('warning');
       alert('Mohon masukkan nominal angka yang valid.');
       return;
     }
@@ -141,6 +145,7 @@ export const CashflowInputPage: React.FC<CashflowInputPageProps> = ({
         autoSyncToSheets
       );
 
+      triggerHaptic('success');
       setSuccessMessage(
         `Sukses merekam transaksi ${formatRupiah(amount)} ke pos "${selectedCategory}"! ${
           isGoogleConnected && autoSyncToSheets
@@ -154,6 +159,7 @@ export const CashflowInputPage: React.FC<CashflowInputPageProps> = ({
       setCatatan('');
       setTimeout(() => setSuccessMessage(null), 6000);
     } catch (err: any) {
+      triggerHaptic('error');
       alert(`Gagal menyimpan: ${err.message}`);
     } finally {
       setIsSubmitting(false);
@@ -242,7 +248,10 @@ export const CashflowInputPage: React.FC<CashflowInputPageProps> = ({
                       <button
                         type="button"
                         key={item.id}
-                        onClick={() => setSelectedType(item.id)}
+                        onClick={() => {
+                          triggerHaptic('selection');
+                          setSelectedType(item.id);
+                        }}
                         className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-semibold transition-all duration-200 border ${
                           isSelected
                             ? 'bg-white/15 text-white border-white/40 shadow-lg scale-[1.02]'

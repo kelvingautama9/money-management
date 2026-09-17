@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { User } from 'firebase/auth';
 import {
   INITIAL_TRANSACTIONS,
@@ -31,8 +31,10 @@ import {
   clearRowInSheet,
   parseCurrencyToNumber,
   formatRupiah,
-  getSpreadsheetSheetTitles
+  getSpreadsheetSheetTitles,
+  formatSheetRange
 } from './lib/sheetsApi';
+import { triggerHaptic } from './lib/haptics';
 
 // Components
 import { NavigationTabBar, ActivePage } from './components/NavigationTabBar';
@@ -128,7 +130,9 @@ export default function App() {
     const unsubscribe = initAuth(
       (authenticatedUser, token) => {
         setUser(authenticatedUser);
-        setCachedAccessToken(token);
+        if (token) {
+          setCachedAccessToken(token);
+        }
       },
       () => {
         setUser(null);
@@ -138,33 +142,45 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Auto-detect real sheet tabs from connected Google Spreadsheet
-  useEffect(() => {
-    const detectSpreadsheetTabs = async () => {
-      const token = await getAccessToken();
-      const cleanId = extractSpreadsheetId(spreadsheetId);
-      if (token && cleanId) {
-        try {
-          const titles = await getSpreadsheetSheetTitles(cleanId, token);
-          if (titles && titles.length > 0) {
-            setAvailableSheets((prev) => {
-              const merged = Array.from(new Set([...titles, ...prev]));
-              try {
-                localStorage.setItem('kelvin_financial_available_sheets', JSON.stringify(merged));
-              } catch (e) {}
-              return merged;
-            });
-          }
-        } catch (e) {
-          console.warn('Tab sheets discovery error:', e);
-        }
-      }
-    };
+  // Auto-detect real sheet tabs from connected Google Spreadsheet directly
+  const handleRefreshSpreadsheetTabs = useCallback(async () => {
+    const token = await getAccessToken();
+    const cleanId = extractSpreadsheetId(spreadsheetId);
+    if (token && cleanId) {
+      try {
+        setIsSyncing(true);
+        const titles = await getSpreadsheetSheetTitles(cleanId, token);
+        if (titles && titles.length > 0) {
+          // Exactly use titles as named on the Google Sheet without forcing uppercase!
+          setAvailableSheets(titles);
+          try {
+            localStorage.setItem('kelvin_financial_available_sheets', JSON.stringify(titles));
+          } catch (e) {}
 
-    if (user) {
-      detectSpreadsheetTabs();
+          // If current sheetName isn't in titles, check if there's a case-insensitive match or keep it
+          const exactMatch = titles.find((t) => t === sheetName);
+          if (!exactMatch) {
+            const caseMatch = titles.find((t) => t.toLowerCase() === sheetName.toLowerCase());
+            if (caseMatch) {
+              setSheetName(caseMatch);
+              localStorage.setItem('kelvin_financial_sheet_name', caseMatch);
+            }
+          }
+          setSyncNotice(`Tab Google Sheet terdeteksi: ${titles.join(', ')}`);
+        }
+      } catch (e: any) {
+        console.warn('Tab sheets discovery error:', e);
+      } finally {
+        setIsSyncing(false);
+      }
     }
-  }, [user, spreadsheetId]);
+  }, [spreadsheetId, sheetName]);
+
+  useEffect(() => {
+    if (user) {
+      handleRefreshSpreadsheetTabs();
+    }
+  }, [user, handleRefreshSpreadsheetTabs]);
 
   // Update CSS variables whenever glassSettings changes
   useEffect(() => {
@@ -281,25 +297,36 @@ export default function App() {
 
   const sisaSaldoIncome = totalPemasukan - totalPengeluaran;
 
-  // Format active sheet name for header display (e.g. "Agustus 2026")
+  // Format active sheet name for header display (e.g. "Sept 2026" or exact sheetName)
   const formattedSheetMonth = useMemo(() => {
     if (!sheetName) return 'September 2026';
-    const clean = sheetName.charAt(0).toUpperCase() + sheetName.slice(1).toLowerCase();
-    return `${clean} 2026`;
+    // If sheetName already contains year digits (e.g. "Sept 2026"), avoid appending 2026 again
+    if (/\d{4}/.test(sheetName)) {
+      return sheetName;
+    }
+    return `${sheetName} 2026`;
   }, [sheetName]);
 
   // --- Handlers for Google Sheets Sync & Auth ---
   const handleGoogleLogin = async () => {
     try {
       setIsSyncing(true);
+      setSyncNotice('Menghubungkan ke Google...');
       const res = await googleSignIn();
       if (res) {
         setUser(res.user);
         setSyncNotice(`Tersambung sebagai ${res.user.email} dengan akses Google Sheets & Drive.`);
+        triggerHaptic('success');
       }
     } catch (err: any) {
       console.error('Sign-in failure:', err);
-      alert(`Gagal login Google: ${err?.message || 'Silakan coba lagi'}`);
+      if (
+        err?.code === 'auth/popup-closed-by-user' ||
+        err?.code === 'auth/cancelled-popup-request'
+      ) {
+        return;
+      }
+      setSyncNotice(`Koneksi Google: ${err?.message || 'Silakan coba lagi'}`);
     } finally {
       setIsSyncing(false);
     }
@@ -374,8 +401,9 @@ export default function App() {
     if (token && cleanId) {
       try {
         setIsSyncing(true);
-        setSyncNotice(`Menghubungkan ke tab sheet ${cleanTarget} dari Google Sheets...`);
-        const rows = await fetchSheetValues(cleanId, `${cleanTarget}!A2:F150`, token);
+        setSyncNotice(`Menghubungkan ke tab sheet "${cleanTarget}" dari Google Sheets...`);
+        const safeRange = formatSheetRange(cleanTarget, 'A2:F150');
+        const rows = await fetchSheetValues(cleanId, safeRange, token);
         if (rows && rows.length > 0) {
           const parsedRows: Transaction[] = [];
           rows.forEach((r, idx) => {
@@ -405,11 +433,11 @@ export default function App() {
         }
 
         // When rows are empty or not formatted yet
-        setSyncNotice(`Tab sheet ${cleanTarget} berhasil dibuka (belum ada transaksi). Siap untuk diisi.`);
+        setSyncNotice(`Tab sheet "${cleanTarget}" berhasil dibuka (belum ada transaksi). Siap untuk diisi.`);
         loadFallbackMonthData(cleanTarget);
       } catch (err: any) {
         console.warn(`Catatan tab sheet ${cleanTarget}:`, err);
-        setSyncNotice(`Tab ${cleanTarget} dibuka secara lokal. Hubungkan atau pastikan nama tab sama persis di Google Sheets.`);
+        setSyncNotice(`Tab "${cleanTarget}" dibuka secara lokal. Pastikan nama tab persis sama di Google Sheets.`);
         loadFallbackMonthData(cleanTarget);
       } finally {
         setIsSyncing(false);
@@ -421,7 +449,7 @@ export default function App() {
   };
 
   const handleAddNewSheet = async (newSheetName: string) => {
-    const clean = newSheetName.trim().toUpperCase();
+    const clean = newSheetName.trim();
     if (!clean) return;
 
     if (!availableSheets.includes(clean)) {
@@ -452,7 +480,8 @@ export default function App() {
     try {
       setIsSyncing(true);
       setSyncNotice(`Menarik data live dari tab sheet ${sheetName}...`);
-      const rows = await fetchSheetValues(cleanId, `${sheetName}!A2:F150`, token);
+      const safeRange = formatSheetRange(sheetName, 'A2:F150');
+      const rows = await fetchSheetValues(cleanId, safeRange, token);
       if (rows && rows.length > 0) {
         const parsedRows: Transaction[] = [];
         rows.forEach((r, idx) => {
@@ -681,7 +710,10 @@ export default function App() {
                 <span className="font-semibold text-slate-200">{formattedSheetMonth}</span>
                 <span className="text-slate-600">•</span>
                 <button
-                  onClick={() => setIsMenuPopupOpen(true)}
+                  onClick={() => {
+                    triggerHaptic('light');
+                    setIsMenuPopupOpen(true);
+                  }}
                   className="text-emerald-400/90 hover:text-emerald-300 font-medium transition cursor-pointer hover:underline"
                   title="Klik untuk membuka menu & sinkronisasi Google Sheets"
                 >
@@ -695,7 +727,10 @@ export default function App() {
           <div className="flex items-center gap-1.5 sm:gap-2">
             {/* Sync Button */}
             <button
-              onClick={handleSyncFromSheets}
+              onClick={() => {
+                triggerHaptic('medium');
+                handleSyncFromSheets();
+              }}
               disabled={isSyncing}
               className="flex items-center gap-1.5 px-3 py-2 rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-xs font-semibold text-slate-200 transition active:scale-95 disabled:opacity-50"
               title="Sinkronisasi Google Sheets"
@@ -706,7 +741,10 @@ export default function App() {
 
             {/* Laporan Otomatis */}
             <button
-              onClick={() => setIsReportModalOpen(true)}
+              onClick={() => {
+                triggerHaptic('light');
+                setIsReportModalOpen(true);
+              }}
               className="flex items-center gap-1.5 px-3 py-2 rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-xs font-semibold text-slate-200 transition active:scale-95"
               title="Laporan Otomatis"
             >
@@ -716,7 +754,10 @@ export default function App() {
 
             {/* Popup Menu Button (Semi-Transparent Glass Popup Container) */}
             <button
-              onClick={() => setIsMenuPopupOpen(true)}
+              onClick={() => {
+                triggerHaptic('medium');
+                setIsMenuPopupOpen(true);
+              }}
               className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-blue-600/30 hover:bg-blue-600/40 border border-blue-400/40 text-xs font-bold text-white shadow-lg shadow-blue-600/20 transition active:scale-95"
               title="Buka Menu & Navigasi"
             >
@@ -749,6 +790,7 @@ export default function App() {
             onSelectSheet={handleSelectMonth}
             availableSheets={availableSheets}
             onAddNewSheet={handleAddNewSheet}
+            onRefreshTabs={handleRefreshSpreadsheetTabs}
             isGoogleConnected={Boolean(user)}
             user={user}
             isSyncing={isSyncing}
@@ -973,7 +1015,10 @@ export default function App() {
           className="pointer-events-auto flex items-center gap-1.5 p-1.5 rounded-full border border-white/15 text-xs font-semibold text-slate-200"
         >
           <button
-            onClick={() => setActivePage('summary')}
+            onClick={() => {
+              triggerHaptic('selection');
+              setActivePage('summary');
+            }}
             className={`px-3 py-1.5 rounded-full transition ${
               activePage === 'summary'
                 ? 'bg-white/20 text-white font-bold'
@@ -983,7 +1028,10 @@ export default function App() {
             Dashboard
           </button>
           <button
-            onClick={() => setActivePage('cashflow')}
+            onClick={() => {
+              triggerHaptic('selection');
+              setActivePage('cashflow');
+            }}
             className={`px-3 py-1.5 rounded-full transition flex items-center gap-1 ${
               activePage === 'cashflow'
                 ? 'bg-emerald-500/25 text-emerald-300 font-bold border border-emerald-500/30'
@@ -994,7 +1042,10 @@ export default function App() {
             <span>Cashflow</span>
           </button>
           <button
-            onClick={() => setIsMenuPopupOpen(true)}
+            onClick={() => {
+              triggerHaptic('medium');
+              setIsMenuPopupOpen(true);
+            }}
             className="px-3.5 py-1.5 rounded-full bg-blue-600/30 text-blue-300 hover:bg-blue-600/40 border border-blue-400/40 font-bold transition flex items-center gap-1.5 shadow-sm active:scale-95"
           >
             <Sparkles className="w-3.5 h-3.5 text-sky-300" />

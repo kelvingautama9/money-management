@@ -110,11 +110,20 @@ export const ProjectSyncManager: React.FC<ProjectSyncManagerProps> = ({
     try {
       setValidating(true);
       setValidationResult(null);
-      const token = await getAccessToken();
+      let token = await getAccessToken();
+      if (!token) {
+        // Attempt to request / refresh permission
+        try {
+          await onLogin();
+          token = await getAccessToken();
+        } catch (e) {}
+      }
       if (!token) {
         setValidationResult({
           success: false,
-          error: 'Belum login ke Google Akun. Silakan klik "Sign in with Google" terlebih dahulu.'
+          error: user
+            ? `Izin akses Google Sheets perlu diperbarui untuk akun ${user.email}. Silakan klik tombol "Sign in with Google" di atas terlebih dahulu.`
+            : 'Belum login ke Google Akun. Silakan klik "Sign in with Google" terlebih dahulu.'
         });
         return;
       }
@@ -129,9 +138,20 @@ export const ProjectSyncManager: React.FC<ProjectSyncManagerProps> = ({
         setInputSheetName(sheetNames[0]);
       }
     } catch (err: any) {
+      const errMsg = err?.message || '';
+      let friendlyError = errMsg;
+      if (
+        errMsg.includes('403') ||
+        errMsg.toLowerCase().includes('permission') ||
+        errMsg.toLowerCase().includes('not authorized')
+      ) {
+        friendlyError = `Akses Ditolak (403): Akun Google yang Anda gunakan (${user?.email || 'saat ini'}) tidak memiliki izin akses ke Google Sheet ini. Jika file ini milik Akun Google lain (misal Akun B), buka file tersebut di akun pemiliknya, klik tombol "Bagikan" (Share) di pojok kanan atas, lalu tambahkan email ${user?.email || 'Anda'} sebagai Editor (atau pilih "Siapa saja yang memiliki link: Editor").`;
+      } else if (errMsg.includes('404') || errMsg.toLowerCase().includes('not found')) {
+        friendlyError = `File Tidak Ditemukan (404): ID/Link spreadsheet salah atau file belum dibagikan ke akun ${user?.email || 'Anda'}.`;
+      }
       setValidationResult({
         success: false,
-        error: err?.message || 'Gagal mengakses spreadsheet. Pastikan akun Google yang Anda gunakan memiliki izin edit.'
+        error: friendlyError
       });
     } finally {
       setValidating(false);
@@ -227,20 +247,34 @@ export const ProjectSyncManager: React.FC<ProjectSyncManagerProps> = ({
           <button
             onClick={() => onLogin()}
             disabled={isSyncing}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-full bg-white hover:bg-slate-100 text-slate-900 font-bold text-xs shadow-md active:scale-95 transition"
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-full bg-white hover:bg-slate-100 text-slate-900 font-bold text-xs shadow-md active:scale-95 transition disabled:opacity-60"
           >
-            <svg className="w-3.5 h-3.5" viewBox="0 0 48 48">
-              <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
-              <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
-              <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
-              <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
-            </svg>
-            Sign in with Google
+            {isSyncing ? (
+              <RefreshCw className="w-3.5 h-3.5 animate-spin text-blue-600" />
+            ) : (
+              <svg className="w-3.5 h-3.5" viewBox="0 0 48 48">
+                <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+                <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+                <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+                <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
+              </svg>
+            )}
+            <span>{isSyncing ? 'Membuka Login...' : 'Sign in with Google'}</span>
           </button>
         ) : (
-          <div className="flex items-center gap-1.5 text-xs text-emerald-400 font-semibold">
-            <CheckCircle2 className="w-4 h-4" />
-            <span>Siap Sinkron</span>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 text-xs text-emerald-400 font-semibold px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/25">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>Siap Sinkron</span>
+            </div>
+            <button
+              onClick={() => onLogin()}
+              disabled={isSyncing}
+              className="text-[11px] font-medium text-slate-300 hover:text-white underline px-2 py-1 transition disabled:opacity-50"
+              title="Pilih akun Google lain atau perbarui sesi izin"
+            >
+              Ganti Akun
+            </button>
           </div>
         )}
       </div>
@@ -421,6 +455,17 @@ export const ProjectSyncManager: React.FC<ProjectSyncManagerProps> = ({
       {/* TAB 2: MANUAL URL / SPREADSHEET ID INPUT */}
       {activeTab === 'manual' && (
         <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/10 space-y-3">
+          {/* Multi-Account Tip Notice */}
+          <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-[11px] text-blue-200">
+            <p className="font-semibold text-white flex items-center gap-1.5 mb-1">
+              <Sparkles className="w-3.5 h-3.5 text-sky-400" />
+              Ingin Menghubungkan Google Sheet dari Akun Google Lain?
+            </p>
+            <p className="text-slate-300 leading-relaxed">
+              Jika file Google Sheet Anda ada di <strong>Akun Google B</strong> sedangkan Anda login dengan <strong>{user?.email || 'Akun Google A'}</strong>, Anda cukup membuka spreadsheet tersebut di Akun B, klik tombol <strong>Bagikan (Share)</strong> di kanan atas, lalu tambahkan email <strong>{user?.email || 'akun aktif Anda'}</strong> sebagai <strong>Editor</strong>.
+            </p>
+          </div>
+
           <div>
             <label className="text-xs font-bold text-white block mb-1">
               Link URL atau ID Google Spreadsheet:

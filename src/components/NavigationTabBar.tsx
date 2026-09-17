@@ -1,5 +1,6 @@
 import React, { useRef } from 'react';
 import { GlassSettings } from '../types';
+import { triggerHaptic } from '../lib/haptics';
 import {
   LayoutDashboard,
   PlusCircle,
@@ -96,7 +97,10 @@ export const NavigationTabBar: React.FC<NavigationTabBarProps> = ({
             return (
               <button
                 key={tab.id}
-                onClick={() => onSelectPage(tab.id)}
+                onClick={() => {
+                  triggerHaptic('selection');
+                  onSelectPage(tab.id);
+                }}
                 className={`relative flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-200 shrink-0 ${
                   isActive
                     ? 'bg-gradient-to-r from-blue-600/70 to-indigo-600/70 text-white border border-white/30 shadow-md shadow-blue-600/20'
@@ -124,7 +128,10 @@ export const NavigationTabBar: React.FC<NavigationTabBarProps> = ({
         {/* Project Sheets Modal Trigger */}
         {onOpenProjectManager && (
           <button
-            onClick={onOpenProjectManager}
+            onClick={() => {
+              triggerHaptic('medium');
+              onOpenProjectManager();
+            }}
             className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 rounded-full bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-400/30 text-indigo-200 text-xs font-semibold transition shrink-0 active:scale-95"
             title="Ganti / Sinkronkan Project Google Sheet"
           >
@@ -136,7 +143,10 @@ export const NavigationTabBar: React.FC<NavigationTabBarProps> = ({
         {/* Dedicated Popup Glass Menu Trigger */}
         {onOpenMenu && (
           <button
-            onClick={onOpenMenu}
+            onClick={() => {
+              triggerHaptic('medium');
+              onOpenMenu();
+            }}
             className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 rounded-full bg-white/10 hover:bg-white/15 border border-white/15 text-white text-xs font-semibold transition shrink-0 active:scale-95"
             title="Buka Menu & Navigasi Lengkap"
           >

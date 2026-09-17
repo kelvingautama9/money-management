@@ -1,5 +1,6 @@
 import React from 'react';
 import { GlassSettings } from '../types';
+import { triggerHaptic } from '../lib/haptics';
 
 interface GlassButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'danger' | 'ghost';
@@ -15,9 +16,21 @@ export const GlassButton: React.FC<GlassButtonProps> = ({
   settings,
   icon,
   className = '',
+  onClick,
   ...props
 }) => {
   const specular = settings ? settings.specularIntensity / 100 : 0.85;
+
+  const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (variant === 'danger') {
+      triggerHaptic('warning');
+    } else if (variant === 'primary') {
+      triggerHaptic('medium');
+    } else {
+      triggerHaptic('light');
+    }
+    onClick?.(e);
+  };
 
   const sizeClasses = {
     sm: 'px-3 py-1.5 text-xs rounded-full gap-1.5',
@@ -35,6 +48,7 @@ export const GlassButton: React.FC<GlassButtonProps> = ({
   return (
     <button
       {...props}
+      onClick={handleClick}
       style={{
         boxShadow: variant !== 'ghost' ? `
           0 8px 20px -6px rgba(0, 0, 0, 0.4),
@@ -49,3 +63,4 @@ export const GlassButton: React.FC<GlassButtonProps> = ({
     </button>
   );
 };
+
