@@ -36,14 +36,53 @@ export function formatRupiah(amount: number): string {
  * Parses Indonesian currency strings like "Rp5.916.058", "Rp 200.122", "5.916.058" into a number.
  */
 export function parseCurrencyToNumber(val: string | number | undefined): number {
-  if (typeof val === 'number') return val;
-  if (!val) return 0;
-  const clean = val
-    .toString()
-    .replace(/[^0-9,-]/g, '')
-    .replace(',', '.');
-  const num = parseFloat(clean);
-  return isNaN(num) ? 0 : num;
+  if (typeof val === 'number') return isNaN(val) ? 0 : val;
+  if (val === undefined || val === null) return 0;
+  let str = val.toString().trim();
+  if (!str) return 0;
+
+  // Check for negative indicator: minus (-), en-dash (–), em-dash (—), or accounting parentheses (Rp...)
+  const isNegative =
+    str.includes('-') ||
+    str.includes('–') ||
+    str.includes('—') ||
+    (str.startsWith('(') && str.endsWith(')'));
+
+  // Remove currency words, parentheses, non-breaking spaces, and leave digits, commas, dots
+  str = str.replace(/[^0-9,.]/g, '');
+  if (!str) return 0;
+
+  let cleanNumberStr = '';
+  if (str.includes('.') && str.includes(',')) {
+    if (str.lastIndexOf(',') > str.lastIndexOf('.')) {
+      // Indonesian format: 1.125.940,50
+      cleanNumberStr = str.replace(/\./g, '').replace(',', '.');
+    } else {
+      // US format: 1,125,940.50
+      cleanNumberStr = str.replace(/,/g, '');
+    }
+  } else if (str.includes('.')) {
+    const parts = str.split('.');
+    if (parts.length > 2 || (parts.length === 2 && parts[1].length === 3)) {
+      // Thousands separator like 126.090 or 1.125.940
+      cleanNumberStr = parts.join('');
+    } else {
+      cleanNumberStr = str;
+    }
+  } else if (str.includes(',')) {
+    const parts = str.split(',');
+    if (parts.length > 2 || (parts.length === 2 && parts[1].length === 3)) {
+      cleanNumberStr = parts.join('');
+    } else {
+      cleanNumberStr = str.replace(',', '.');
+    }
+  } else {
+    cleanNumberStr = str;
+  }
+
+  const num = parseFloat(cleanNumberStr);
+  if (isNaN(num)) return 0;
+  return isNegative ? -Math.abs(num) : num;
 }
 
 /**
@@ -63,13 +102,13 @@ export function parseSheetGridData(
     return { transactions, summary };
   }
 
+  let accountColIndex = -1;
   let readingAccountSection = false;
 
   rows.forEach((row, rowIndex) => {
     if (!row || row.length === 0) return;
 
     // --- 1. Extract Transaction from columns A..F ---
-    // Header check
     const col0 = (row[0] || '').toString().trim();
     const col1 = (row[1] || '').toString().trim();
     const col2 = (row[2] || '').toString().trim();
@@ -83,8 +122,7 @@ export function parseSheetGridData(
 
     if (!isHeaderRow && (col0 || col1 || col4)) {
       const parsedAmount = parseCurrencyToNumber(col4);
-      // Valid transaction candidate
-      if (col1 || col2 || parsedAmount > 0) {
+      if (col1 || col2 || parsedAmount !== 0) {
         transactions.push({
           id: `sheet-tx-${sheetName}-${rowIndex + 1}`,
           bulan: col0 || sheetName,
@@ -98,62 +136,118 @@ export function parseSheetGridData(
       }
     }
 
-    // --- 2. Extract Precalculated Summary from columns H..N (or scan all cells >= column index 6) ---
-    for (let c = 6; c < row.length; c++) {
+    // --- 2. Extract Precalculated Summary from columns G..N ---
+    // First, scan for Account Section Header or Read active Account Section row
+    if (readingAccountSection && accountColIndex >= 0) {
+      const accCell = (row[accountColIndex] || '').toString().trim();
+      const accCellLower = accCell.toLowerCase();
+
+      // Section terminator
+      if (
+        !accCell ||
+        accCellLower.startsWith('total pemasukan') ||
+        accCellLower.startsWith('dana darurat') ||
+        accCellLower.startsWith('jenis budgeting') ||
+        accCellLower.startsWith('target bulanan')
+      ) {
+        readingAccountSection = false;
+      } else {
+        // Look for balance in adjacent columns (c+1, c+2, c+3)
+        let rawSaldo = row[accountColIndex + 1];
+        if ((rawSaldo === undefined || rawSaldo === '') && row[accountColIndex + 2] !== undefined) {
+          rawSaldo = row[accountColIndex + 2];
+        }
+
+        if (rawSaldo !== undefined && rawSaldo !== '') {
+          const balance = parseCurrencyToNumber(rawSaldo);
+          if (summary.accountBalances) {
+            summary.accountBalances[accCell] = balance;
+            summary.accountBalances[accCellLower] = balance;
+            // Also store clean stripped key (e.g. "bca", "bankbca", "seabank")
+            const cleanKey = accCellLower.replace(/[^a-z0-9]/g, '');
+            if (cleanKey) {
+              summary.accountBalances[cleanKey] = balance;
+            }
+          }
+        }
+      }
+    }
+
+    // Scan cells for KPI labels and section headers
+    for (let c = 5; c < row.length; c++) {
       const cellText = (row[c] || '').toString().trim();
       const cellTextLower = cellText.toLowerCase();
       if (!cellText) continue;
 
       // Check Total Aset (Net Worth)
-      if (cellTextLower === 'total aset' || cellTextLower === 'total asset' || cellTextLower.includes('kekayaan bersih')) {
-        const nextVal = row[c + 1] || row[c + 2];
+      if (
+        cellTextLower === 'total aset' ||
+        cellTextLower === 'total asset' ||
+        cellTextLower === 'total assets' ||
+        cellTextLower.includes('total aset') ||
+        cellTextLower.includes('kekayaan bersih') ||
+        cellTextLower.includes('net worth') ||
+        cellTextLower === 'grand total'
+      ) {
+        let nextVal = row[c + 1] ?? row[c + 2] ?? row[c + 3];
+        // If not on same row, check row below
+        if ((nextVal === undefined || nextVal === '') && rows[rowIndex + 1]) {
+          nextVal = rows[rowIndex + 1][c] ?? rows[rowIndex + 1][c + 1];
+        }
         const num = parseCurrencyToNumber(nextVal);
-        if (num > 0) {
+        if (num !== 0 || nextVal === '0') {
           summary.totalAset = num;
         }
       }
 
       // Check Total Cash Standby + Dana Darurat
-      if (cellTextLower.includes('total cash standby') || cellTextLower.includes('cash standby')) {
-        const nextVal = row[c + 1] || row[c + 2];
+      if (
+        cellTextLower.includes('total cash standby') ||
+        cellTextLower.includes('cash standby') ||
+        cellTextLower.includes('kas cair')
+      ) {
+        let nextVal = row[c + 1] ?? row[c + 2] ?? row[c + 3];
+        if ((nextVal === undefined || nextVal === '') && rows[rowIndex + 1]) {
+          nextVal = rows[rowIndex + 1][c] ?? rows[rowIndex + 1][c + 1];
+        }
         const num = parseCurrencyToNumber(nextVal);
-        if (num > 0) {
+        if (num !== 0 || nextVal === '0') {
           summary.cashStandbyDanaDarurat = num;
         }
       }
 
       // Check Total Investment
-      if (cellTextLower === 'total investment' || cellTextLower === 'total investasi' || cellTextLower.includes('portofolio investasi')) {
-        const nextVal = row[c + 1] || row[c + 2];
+      if (
+        cellTextLower === 'total investment' ||
+        cellTextLower === 'total investasi' ||
+        cellTextLower.includes('total investment') ||
+        cellTextLower.includes('portofolio investasi') ||
+        cellTextLower.includes('total portofolio')
+      ) {
+        let nextVal = row[c + 1] ?? row[c + 2] ?? row[c + 3];
+        if ((nextVal === undefined || nextVal === '') && rows[rowIndex + 1]) {
+          nextVal = rows[rowIndex + 1][c] ?? rows[rowIndex + 1][c + 1];
+        }
         const num = parseCurrencyToNumber(nextVal);
-        if (num > 0) {
+        if (num !== 0 || nextVal === '0') {
           summary.totalInvestment = num;
         }
       }
 
       // Check Account Balances section header
-      if (cellTextLower === 'nama akun') {
+      if (
+        cellTextLower === 'nama akun' ||
+        cellTextLower === 'rekening' ||
+        cellTextLower.includes('nama akun') ||
+        cellTextLower.includes('dompet & rekening')
+      ) {
         readingAccountSection = true;
-      }
-
-      // Read account rows under "Nama Akun"
-      if (readingAccountSection && cellTextLower !== 'nama akun') {
-        if (cellTextLower.startsWith('total pemasukan') || cellTextLower.startsWith('dana darurat') || cellTextLower.startsWith('jenis budgeting')) {
-          readingAccountSection = false;
-        } else {
-          const nextVal = row[c + 1];
-          if (nextVal !== undefined && nextVal !== '') {
-            const num = parseCurrencyToNumber(nextVal);
-            if (summary.accountBalances) {
-              summary.accountBalances[cellText] = num;
-            }
-          }
-        }
+        accountColIndex = c;
       }
 
       // Check Emergency Fund
       if (cellTextLower.includes('dana darurat (blu bca)') || cellTextLower.includes('dana darurat saat ini')) {
-        const nextVal = row[c + 1];
+        const nextVal = row[c + 1] ?? row[c + 2];
         const num = parseCurrencyToNumber(nextVal);
         if (num > 0) {
           summary.emergencyFund = {
@@ -164,7 +258,7 @@ export function parseSheetGridData(
       }
 
       if (cellTextLower.includes('target dana darurat')) {
-        const nextVal = row[c + 1];
+        const nextVal = row[c + 1] ?? row[c + 2];
         const num = parseCurrencyToNumber(nextVal);
         if (num > 0 && summary.emergencyFund) {
           summary.emergencyFund.target = num;
@@ -172,6 +266,37 @@ export function parseSheetGridData(
       }
     }
   });
+
+  // Post-processing: If totalAset was not explicitly found in sheet cell, calculate from account balances
+  if (!summary.totalAset && summary.accountBalances) {
+    const balances = summary.accountBalances;
+    let sumTotal = 0;
+    let hasValidBalances = false;
+    const recognizedAccounts = [
+      'bank bca',
+      'seabank',
+      'blu bca - savings',
+      'investasi',
+      'allo bank',
+      'jago-transport',
+      'jago-entertainment',
+      'blu bca - date',
+      'cash'
+    ];
+
+    for (const acc of recognizedAccounts) {
+      const clean = acc.replace(/[^a-z0-9]/g, '');
+      const val = balances[acc] ?? balances[clean];
+      if (typeof val === 'number') {
+        sumTotal += val;
+        hasValidBalances = true;
+      }
+    }
+
+    if (hasValidBalances && sumTotal !== 0) {
+      summary.totalAset = sumTotal;
+    }
+  }
 
   return { transactions, summary };
 }
@@ -223,8 +348,10 @@ export async function appendRowToSheet(
   tx: Omit<Transaction, 'id'>,
   accessToken: string
 ) {
-  const formattedJumlah = formatRupiah(tx.jumlah);
-  const rowValues = [[tx.bulan, tx.kategori, tx.akun, tx.tipe, formattedJumlah, tx.catatan || '']];
+  // CRITICAL: Send raw number for numeric amount column, NEVER "Rp 126.090"
+  // Google Sheets cell formatting handles currency display automatically
+  const numericJumlah = Math.round(Number(tx.jumlah) || 0);
+  const rowValues = [[tx.bulan, tx.kategori, tx.akun, tx.tipe, numericJumlah, tx.catatan || '']];
   const range = encodeURIComponent(formatSheetRange(sheetName, 'A:F'));
 
   const res = await fetch(
@@ -256,8 +383,9 @@ export async function updateRowInSheet(
   tx: Transaction,
   accessToken: string
 ) {
-  const formattedJumlah = formatRupiah(tx.jumlah);
-  const rowValues = [[tx.bulan, tx.kategori, tx.akun, tx.tipe, formattedJumlah, tx.catatan || '']];
+  // CRITICAL: Send raw number for numeric amount column, NEVER "Rp 126.090"
+  const numericJumlah = Math.round(Number(tx.jumlah) || 0);
+  const rowValues = [[tx.bulan, tx.kategori, tx.akun, tx.tipe, numericJumlah, tx.catatan || '']];
   const range = encodeURIComponent(formatSheetRange(sheetName, `A${rowIndex}:F${rowIndex}`));
 
   const res = await fetch(

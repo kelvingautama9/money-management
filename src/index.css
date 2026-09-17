@@ -167,3 +167,107 @@
   flex-shrink: 0;
 }
 
+/* --- THEME SYSTEM: LIGHT & BEIGE STYLING --- */
+.theme-light {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+}
+
+.theme-light body {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+}
+
+.theme-light .liquid-glass-input {
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(203, 213, 225, 0.9);
+  color: #0f172a;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.theme-light .liquid-glass-input:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+.theme-light .liquid-glass-button {
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(203, 213, 225, 0.9);
+  color: #1e293b;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.theme-light .liquid-glass-button:hover {
+  background: #ffffff;
+  color: #0f172a;
+}
+
+.theme-light select option {
+  background: #ffffff !important;
+  color: #0f172a !important;
+}
+
+.theme-light .ambient-glow-1 {
+  background: radial-gradient(circle, rgba(147, 197, 253, 0.3) 0%, rgba(221, 214, 254, 0.15) 50%, transparent 70%);
+}
+
+.theme-light .ambient-glow-2 {
+  background: radial-gradient(circle, rgba(167, 243, 208, 0.25) 0%, rgba(199, 210, 254, 0.15) 50%, transparent 70%);
+}
+
+.theme-light .ambient-glow-3 {
+  background: radial-gradient(circle, rgba(254, 215, 170, 0.25) 0%, rgba(253, 230, 138, 0.1) 50%, transparent 70%);
+}
+
+/* Warm Editorial Beige Theme */
+.theme-beige {
+  background-color: #f5f2eb !important;
+  color: #29231c !important;
+}
+
+.theme-beige body {
+  background-color: #f5f2eb !important;
+  color: #29231c !important;
+}
+
+.theme-beige .liquid-glass-input {
+  background: rgba(255, 253, 248, 0.95);
+  border: 1px solid rgba(223, 213, 198, 0.95);
+  color: #29231c;
+  box-shadow: 0 1px 3px rgba(60, 45, 30, 0.04);
+}
+
+.theme-beige .liquid-glass-input:focus {
+  border-color: #b45309;
+  box-shadow: 0 0 0 3px rgba(180, 83, 9, 0.12);
+}
+
+.theme-beige .liquid-glass-button {
+  background: rgba(255, 253, 248, 0.88);
+  border: 1px solid rgba(223, 213, 198, 0.9);
+  color: #3f362c;
+  box-shadow: 0 2px 8px rgba(60, 45, 30, 0.05);
+}
+
+.theme-beige .liquid-glass-button:hover {
+  background: #ffffff;
+  color: #1f1913;
+}
+
+.theme-beige select option {
+  background: #fbf9f4 !important;
+  color: #29231c !important;
+}
+
+.theme-beige .ambient-glow-1 {
+  background: radial-gradient(circle, rgba(251, 191, 36, 0.18) 0%, rgba(245, 158, 11, 0.08) 50%, transparent 70%);
+}
+
+.theme-beige .ambient-glow-2 {
+  background: radial-gradient(circle, rgba(217, 119, 6, 0.12) 0%, rgba(180, 83, 9, 0.06) 50%, transparent 70%);
+}
+
+.theme-beige .ambient-glow-3 {
+  background: radial-gradient(circle, rgba(245, 208, 169, 0.2) 0%, rgba(234, 179, 8, 0.08) 50%, transparent 70%);
+}
+

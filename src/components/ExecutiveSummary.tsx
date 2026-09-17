@@ -441,8 +441,15 @@ export const ExecutiveSummary: React.FC<ExecutiveSummaryProps> = ({
               </div>
 
               <div className="mt-2">
-                <span className="text-[11px] text-slate-400 block">Saldo Terkini:</span>
-                <span className="text-base sm:text-lg font-black text-white tracking-tight">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] text-slate-400">Saldo Terkini:</span>
+                  {acc.totalSaldo < 0 && (
+                    <span className="text-[10px] font-bold text-rose-400 bg-rose-500/20 px-1.5 py-0.5 rounded border border-rose-500/30">
+                      Minus
+                    </span>
+                  )}
+                </div>
+                <span className={`text-base sm:text-lg font-black tracking-tight ${acc.totalSaldo < 0 ? 'text-rose-400' : 'text-white'}`}>
                   {displayMoney(acc.totalSaldo)}
                 </span>
               </div>

@@ -183,13 +183,16 @@ export default function App() {
             localStorage.setItem('kelvin_financial_available_sheets', JSON.stringify(titles));
           } catch (e) {}
 
-          // If current sheetName isn't in titles, check if there's a case-insensitive match or keep it
+          // If current sheetName isn't in titles, switch to closest match or the first existing tab
           const exactMatch = titles.find((t) => t === sheetName);
           if (!exactMatch) {
             const caseMatch = titles.find((t) => t.toLowerCase() === sheetName.toLowerCase());
-            if (caseMatch) {
-              setSheetName(caseMatch);
-              localStorage.setItem('kelvin_financial_sheet_name', caseMatch);
+            const target = caseMatch || titles[0];
+            if (target) {
+              setSheetName(target);
+              try {
+                localStorage.setItem('kelvin_financial_sheet_name', target);
+              } catch (e) {}
             }
           }
           setSyncNotice(`Tab Google Sheet terdeteksi (${titles.length} tab): ${titles.join(', ')}`);
@@ -294,14 +297,40 @@ export default function App() {
     };
 
     return accountNames.map((accName) => {
-      // 1. If spreadsheet has precalculated account balance in summary table (Columns H/I), use it
-      if (
-        activeSummary?.accountBalances &&
-        typeof activeSummary.accountBalances[accName] === 'number'
-      ) {
-        const totalSaldo = activeSummary.accountBalances[accName];
+      // 1. Flexible lookup in activeSummary.accountBalances
+      let sheetBalance: number | undefined = undefined;
+      if (activeSummary?.accountBalances) {
+        const balances = activeSummary.accountBalances;
+        if (typeof balances[accName] === 'number') {
+          sheetBalance = balances[accName];
+        } else {
+          const cleanAcc = accName.toLowerCase().replace(/[^a-z0-9]/g, '');
+          for (const [k, v] of Object.entries(balances)) {
+            const cleanK = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (
+              cleanK === cleanAcc ||
+              (cleanAcc.includes('bca') && cleanK.includes('bca') && !cleanAcc.includes('blu') && !cleanK.includes('blu')) ||
+              (cleanAcc.includes('seabank') && cleanK.includes('seabank')) ||
+              (cleanAcc.includes('investasi') && cleanK.includes('investasi')) ||
+              (cleanAcc.includes('allo') && cleanK.includes('allo')) ||
+              (cleanAcc.includes('transport') && cleanK.includes('transport')) ||
+              (cleanAcc.includes('entertainment') && cleanK.includes('entertainment')) ||
+              (cleanAcc.includes('date') && cleanK.includes('date')) ||
+              (cleanAcc.includes('cash') && cleanK.includes('cash'))
+            ) {
+              if (typeof v === 'number') {
+                sheetBalance = v;
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      if (sheetBalance !== undefined) {
+        const totalSaldo = sheetBalance; // CAN BE NEGATIVE (e.g. BCA minus 1 juta lebih)
         const accExpenses = transactions
-          .filter((t) => t.akun.toLowerCase() === accName.toLowerCase() && t.tipe === 'Expense')
+          .filter((t) => t.akun.toLowerCase().includes(accName.toLowerCase()) && t.tipe === 'Expense')
           .reduce((sum, t) => sum + t.jumlah, 0);
         const spendPercent =
           totalSaldo > 0 && accExpenses > 0
@@ -371,7 +400,7 @@ export default function App() {
 
       return {
         nama: accName,
-        totalSaldo: Math.max(0, totalSaldo),
+        totalSaldo, // CRITICAL: Preserve negative balance, do NOT force Math.max(0)
         spendBulanIniPercent: spendPercent
       };
     });
@@ -403,37 +432,67 @@ export default function App() {
   // 6. Aggregate Net Worth & Cash Standby (Synchronized across Summary and Accounts)
   // Total of all non-investment liquid accounts (Cash, Bank BCA, Seabank, Blu, Allo, Jago)
   const cashStandbyDanaDarurat = useMemo(() => {
-    if (activeSummary?.cashStandbyDanaDarurat && activeSummary.cashStandbyDanaDarurat > 0) {
+    if (activeSummary?.cashStandbyDanaDarurat && activeSummary.cashStandbyDanaDarurat !== 0) {
       return activeSummary.cashStandbyDanaDarurat;
     }
-    if ((activeSummary as any)?.cashStandby && (activeSummary as any).cashStandby > 0) {
+    if ((activeSummary as any)?.cashStandby && (activeSummary as any).cashStandby !== 0) {
       return (activeSummary as any).cashStandby;
+    }
+    const monthKey = sheetName.toUpperCase();
+    const fallbackSummary = (INITIAL_SUMMARY_BY_MONTH as any)[monthKey] || (INITIAL_SUMMARY_BY_MONTH as any)[sheetName];
+    if (fallbackSummary?.cashStandby) {
+      return fallbackSummary.cashStandby;
     }
     return accounts
       .filter((acc) => !acc.nama.toLowerCase().includes('investasi'))
       .reduce((sum, acc) => sum + acc.totalSaldo, 0);
-  }, [accounts, activeSummary]);
+  }, [accounts, activeSummary, sheetName]);
 
   // Current investment portfolio value from active summary or account
   const totalInvestment = useMemo(() => {
     if (activeSummary?.totalInvestment && activeSummary.totalInvestment > 0) {
       return activeSummary.totalInvestment;
     }
+    const monthKey = sheetName.toUpperCase();
+    const fallbackSummary = (INITIAL_SUMMARY_BY_MONTH as any)[monthKey] || (INITIAL_SUMMARY_BY_MONTH as any)[sheetName];
+    if (fallbackSummary?.totalInvestment) {
+      return fallbackSummary.totalInvestment;
+    }
+    const historyItem = history.find(
+      (h) => h.bulan.toLowerCase().includes(sheetName.toLowerCase()) || sheetName.toLowerCase().includes(h.bulan.toLowerCase())
+    );
+    if (historyItem) {
+      const invTotal = (historyItem.pluang || 0) + (historyItem.valasBca || 0) + (historyItem.usdtBinance || 0);
+      if (invTotal > 0) return invTotal;
+    }
     const investAcc = accounts.find((acc) => acc.nama.toLowerCase().includes('investasi'));
     if (investAcc && investAcc.totalSaldo > 0) {
       return investAcc.totalSaldo;
     }
     const fromAssets = assets.reduce((sum, a) => sum + a.nilaiAkhirBulan, 0);
-    return fromAssets > 0 ? fromAssets : 53721362;
-  }, [accounts, activeSummary, assets]);
+    return fromAssets > 0 ? fromAssets : 51705076;
+  }, [accounts, activeSummary, sheetName, history, assets]);
 
   // Total Net Worth (Kekayaan Bersih): Sum of all accounts and investments, reacts directly to selected tab
   const totalAset = useMemo(() => {
-    if (activeSummary?.totalAset && activeSummary.totalAset > 0) {
+    if (activeSummary?.totalAset && typeof activeSummary.totalAset === 'number' && activeSummary.totalAset !== 0) {
       return activeSummary.totalAset;
     }
+    // Check predefined summary for the selected month
+    const monthKey = sheetName.toUpperCase();
+    const fallbackSummary = (INITIAL_SUMMARY_BY_MONTH as any)[monthKey] || (INITIAL_SUMMARY_BY_MONTH as any)[sheetName];
+    if (fallbackSummary?.totalAset) {
+      return fallbackSummary.totalAset;
+    }
+    // Check investment history net worth for this month
+    const historyItem = history.find(
+      (h) => h.bulan.toLowerCase().includes(sheetName.toLowerCase()) || sheetName.toLowerCase().includes(h.bulan.toLowerCase())
+    );
+    if (historyItem?.totalNetWorth) {
+      return historyItem.totalNetWorth;
+    }
     return cashStandbyDanaDarurat + totalInvestment;
-  }, [activeSummary, cashStandbyDanaDarurat, totalInvestment]);
+  }, [activeSummary, sheetName, history, cashStandbyDanaDarurat, totalInvestment]);
 
   const sisaSaldoIncome = totalPemasukan - totalPengeluaran;
 
@@ -648,10 +707,24 @@ export default function App() {
       try {
         const remoteTitles = await getSpreadsheetSheetTitles(cleanId, token);
         if (remoteTitles && remoteTitles.length > 0) {
+          // CRITICAL: Strictly replace availableSheets with actual tabs from the spreadsheet
+          // This eliminates tabs that do not exist in the connected project and displays all real ones
           setAvailableSheets(remoteTitles);
           try {
             localStorage.setItem('kelvin_financial_available_sheets', JSON.stringify(remoteTitles));
           } catch (e) {}
+
+          // If currently selected sheet is not in remote titles, switch to closest match or first tab
+          if (!remoteTitles.includes(activeSheetName)) {
+            const caseMatch = remoteTitles.find(
+              (t) => t.toLowerCase() === activeSheetName.toLowerCase()
+            );
+            const targetTab = caseMatch || remoteTitles[0];
+            setSheetName(targetTab);
+            try {
+              localStorage.setItem('kelvin_financial_sheet_name', targetTab);
+            } catch (e) {}
+          }
         }
       } catch (e) {
         console.warn('Could not refresh remote sheet titles:', e);

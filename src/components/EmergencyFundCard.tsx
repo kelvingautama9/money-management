@@ -50,40 +50,47 @@ export const EmergencyFundCard: React.FC<EmergencyFundCardProps> = ({
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 my-6 items-center">
-        {/* Current Fund */}
-        <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/5">
-          <span className="text-xs text-slate-400 flex items-center gap-1.5 mb-1">
-            <ShieldAlert className="w-4 h-4 text-amber-400" />
+      {/* Metric Cards - Responsive layout preventing text collisions */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-3 gap-3 my-5">
+        {/* Current Fund (Featured) */}
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-white/[0.04] border border-white/10 min-w-0 overflow-hidden">
+          <span className="text-[11px] font-medium text-slate-400 flex items-center gap-1.5 mb-1 truncate">
+            <ShieldAlert className="w-3.5 h-3.5 text-amber-400 shrink-0" />
             Dana Tersedia Saat Ini
           </span>
-          <h4 className="text-2xl font-black text-white font-mono">{formatRupiah(fund.current)}</h4>
-          <span className="text-[11px] text-slate-400 mt-1 block">
-            Runway ketahanan: <strong className="text-amber-300">{runwayMonths} Bulan</strong>
+          <h4 className="text-xl sm:text-2xl font-black text-white font-mono tracking-tight truncate" title={formatRupiah(fund.current)}>
+            {formatRupiah(fund.current)}
+          </h4>
+          <span className="text-[11px] text-slate-400 mt-1 block truncate">
+            Runway: <strong className="text-amber-300 font-semibold">{runwayMonths} Bulan</strong>
           </span>
         </div>
 
         {/* Target Fund */}
-        <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/5">
-          <span className="text-xs text-slate-400 flex items-center gap-1.5 mb-1">
-            <Target className="w-4 h-4 text-blue-400" />
-            Target Dana Ideal (6x Rp2 Juta)
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-white/[0.04] border border-white/10 min-w-0 overflow-hidden">
+          <span className="text-[11px] font-medium text-slate-400 flex items-center gap-1.5 mb-1 truncate">
+            <Target className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+            Target Ideal (6 Bulan)
           </span>
-          <h4 className="text-2xl font-black text-white font-mono">{formatRupiah(fund.target)}</h4>
-          <span className="text-[11px] text-slate-400 mt-1 block">
-            Standar aman 6 bulan pengeluaran rutin
+          <h4 className="text-xl sm:text-2xl font-black text-white font-mono tracking-tight truncate" title={formatRupiah(fund.target)}>
+            {formatRupiah(fund.target)}
+          </h4>
+          <span className="text-[11px] text-slate-400 mt-1 block truncate">
+            Standar aman 6x Rp2 Juta
           </span>
         </div>
 
         {/* Shortfall */}
-        <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/5">
-          <span className="text-xs text-slate-400 flex items-center gap-1.5 mb-1">
-            <Clock className="w-4 h-4 text-rose-400" />
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-white/[0.04] border border-white/10 min-w-0 overflow-hidden sm:col-span-2 lg:col-span-1 xl:col-span-1">
+          <span className="text-[11px] font-medium text-slate-400 flex items-center gap-1.5 mb-1 truncate">
+            <Clock className="w-3.5 h-3.5 text-rose-400 shrink-0" />
             Kekurangan Dana
           </span>
-          <h4 className="text-2xl font-black text-rose-300 font-mono">-{formatRupiah(shortfall)}</h4>
-          <span className="text-[11px] text-slate-400 mt-1 block">
-            Perlu diisi bertahap dari sisa gaji
+          <h4 className="text-xl sm:text-2xl font-black text-rose-300 font-mono tracking-tight truncate" title={`-${formatRupiah(shortfall)}`}>
+            -{formatRupiah(shortfall)}
+          </h4>
+          <span className="text-[11px] text-slate-400 mt-1 block truncate">
+            Isi bertahap dari sisa gaji
           </span>
         </div>
       </div>

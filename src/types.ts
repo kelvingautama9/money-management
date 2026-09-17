@@ -74,4 +74,5 @@ export interface GlassSettings {
   specularIntensity: number; // in percent (e.g. 0 - 100)
   tilt3d: boolean;
   activePreset: 'ios26' | 'frosted' | 'deepDark' | 'crystal';
+  themeMode?: 'dark' | 'light' | 'beige';
 }

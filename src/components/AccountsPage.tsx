@@ -138,8 +138,15 @@ export const AccountsPage: React.FC<AccountsPageProps> = ({
                   </p>
 
                   <div className="mt-4 pt-3 border-t border-white/10">
-                    <span className="text-xs text-slate-400 block mb-0.5">Saldo Tersedia:</span>
-                    <span className="text-xl font-bold text-white font-mono block">
+                    <div className="flex items-center justify-between mb-0.5">
+                      <span className="text-xs text-slate-400">Saldo Tersedia:</span>
+                      {acc.totalSaldo < 0 && (
+                        <span className="text-[10px] font-bold text-rose-400 bg-rose-500/20 px-2 py-0.5 rounded-full border border-rose-500/30">
+                          Minus / Defisit
+                        </span>
+                      )}
+                    </div>
+                    <span className={`text-xl font-bold font-mono block ${acc.totalSaldo < 0 ? 'text-rose-400' : 'text-white'}`}>
                       {formatRupiah(acc.totalSaldo)}
                     </span>
                   </div>

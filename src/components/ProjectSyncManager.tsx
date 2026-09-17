@@ -192,17 +192,35 @@ export const ProjectSyncManager: React.FC<ProjectSyncManagerProps> = ({
   const handleSaveAndSync = async (targetId?: string, targetSheet?: string) => {
     const rawTarget = targetId || inputUrlOrId;
     const idToSave = extractSpreadsheetId(rawTarget);
-    const sheetToSave = targetSheet || inputSheetName || 'Sheet1';
 
     if (!idToSave) {
       alert('Masukkan link atau ID Google Spreadsheet terlebih dahulu.');
       return;
     }
 
-    const detectedSheets =
+    let detectedSheets =
       validationResult?.sheets && validationResult.sheets.length > 0
         ? validationResult.sheets
         : undefined;
+
+    let sheetToSave = targetSheet || inputSheetName || 'Sheet1';
+
+    // If sheets not detected yet or targetId was clicked directly from Drive list, fetch real titles now
+    try {
+      const token = await getAccessToken();
+      if (token) {
+        const details = await getSpreadsheetDetails(idToSave, token);
+        const fetchedSheets = details.sheets?.map((s: any) => s.properties?.title) || [];
+        if (fetchedSheets.length > 0) {
+          detectedSheets = fetchedSheets;
+          if (!targetSheet || !fetchedSheets.includes(targetSheet)) {
+            sheetToSave = fetchedSheets[0];
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Could not auto-fetch sheet tabs on selection:', e);
+    }
 
     onSaveProjectConfig(idToSave, sheetToSave, detectedSheets);
     await onSyncNow(idToSave, sheetToSave);
