@@ -58,6 +58,15 @@ export interface InvestmentHistory {
   pnlPercent: number;
 }
 
+export interface SheetSummary {
+  totalAset?: number;
+  cashStandbyDanaDarurat?: number;
+  totalInvestment?: number;
+  accountBalances?: Record<string, number>;
+  emergencyFund?: Partial<EmergencyFund>;
+  budgets?: Partial<BudgetCategory>[];
+}
+
 export interface GlassSettings {
   blur: number; // in px (e.g. 10 - 40)
   translucency: number; // in percent (e.g. 20 - 90)

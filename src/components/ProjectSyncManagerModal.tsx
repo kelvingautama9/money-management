@@ -10,9 +10,9 @@ interface ProjectSyncManagerModalProps {
   user: User | null;
   spreadsheetId: string;
   sheetName: string;
-  onSaveProjectConfig: (spreadsheetId: string, sheetName: string) => void;
+  onSaveProjectConfig: (spreadsheetId: string, sheetName: string, detectedSheets?: string[]) => void;
   onLogin: () => Promise<void>;
-  onSyncNow: () => Promise<void>;
+  onSyncNow: (targetId?: string, targetSheet?: string) => Promise<void>;
   isSyncing: boolean;
   settings: GlassSettings;
 }

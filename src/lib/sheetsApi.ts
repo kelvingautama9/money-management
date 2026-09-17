@@ -1,16 +1,24 @@
-import { Transaction } from '../types';
+import { Transaction, SheetSummary } from '../types';
 
 /**
  * Extracts Google Spreadsheet ID from a URL or raw ID string.
+ * Supports /spreadsheets/d/{id}, /spreadsheets/u/0/d/{id}, /d/{id}, and raw IDs.
  */
 export function extractSpreadsheetId(input: string): string {
   if (!input) return '';
   const trimmed = input.trim();
-  const match = trimmed.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+  // Match standard /d/{id} pattern in any Google Docs URL
+  const match = trimmed.match(/\/d\/([a-zA-Z0-9-_]+)/);
   if (match && match[1]) {
     return match[1];
   }
-  return trimmed;
+  // Strip any URL protocol, domain, parameters or hashes if present
+  const cleaned = trimmed
+    .replace(/^https?:\/\/[^/]+\//, '')
+    .split('?')[0]
+    .split('#')[0]
+    .split('/')[0];
+  return cleaned || trimmed;
 }
 
 /**
@@ -36,6 +44,136 @@ export function parseCurrencyToNumber(val: string | number | undefined): number 
     .replace(',', '.');
   const num = parseFloat(clean);
   return isNaN(num) ? 0 : num;
+}
+
+/**
+ * Parses both transaction records (columns A..F) and the spreadsheet's precalculated
+ * monthly summary tables (columns H..N) from Google Sheets grid data.
+ */
+export function parseSheetGridData(
+  rows: string[][],
+  sheetName: string
+): { transactions: Transaction[]; summary: SheetSummary } {
+  const transactions: Transaction[] = [];
+  const summary: SheetSummary = {
+    accountBalances: {}
+  };
+
+  if (!rows || rows.length === 0) {
+    return { transactions, summary };
+  }
+
+  let readingAccountSection = false;
+
+  rows.forEach((row, rowIndex) => {
+    if (!row || row.length === 0) return;
+
+    // --- 1. Extract Transaction from columns A..F ---
+    // Header check
+    const col0 = (row[0] || '').toString().trim();
+    const col1 = (row[1] || '').toString().trim();
+    const col2 = (row[2] || '').toString().trim();
+    const col3 = (row[3] || '').toString().trim();
+    const col4 = (row[4] || '').toString().trim();
+    const col5 = (row[5] || '').toString().trim();
+
+    const isHeaderRow =
+      col0.toLowerCase().includes('bulan') &&
+      (col1.toLowerCase().includes('kategori') || col2.toLowerCase().includes('akun'));
+
+    if (!isHeaderRow && (col0 || col1 || col4)) {
+      const parsedAmount = parseCurrencyToNumber(col4);
+      // Valid transaction candidate
+      if (col1 || col2 || parsedAmount > 0) {
+        transactions.push({
+          id: `sheet-tx-${sheetName}-${rowIndex + 1}`,
+          bulan: col0 || sheetName,
+          kategori: col1 || 'Lain-lain',
+          akun: col2 || 'Bank BCA',
+          tipe: (col3 as any) || 'Expense',
+          jumlah: parsedAmount,
+          catatan: col5 || '',
+          rowIndex: rowIndex + 1
+        });
+      }
+    }
+
+    // --- 2. Extract Precalculated Summary from columns H..N (or scan all cells >= column index 6) ---
+    for (let c = 6; c < row.length; c++) {
+      const cellText = (row[c] || '').toString().trim();
+      const cellTextLower = cellText.toLowerCase();
+      if (!cellText) continue;
+
+      // Check Total Aset (Net Worth)
+      if (cellTextLower === 'total aset' || cellTextLower === 'total asset' || cellTextLower.includes('kekayaan bersih')) {
+        const nextVal = row[c + 1] || row[c + 2];
+        const num = parseCurrencyToNumber(nextVal);
+        if (num > 0) {
+          summary.totalAset = num;
+        }
+      }
+
+      // Check Total Cash Standby + Dana Darurat
+      if (cellTextLower.includes('total cash standby') || cellTextLower.includes('cash standby')) {
+        const nextVal = row[c + 1] || row[c + 2];
+        const num = parseCurrencyToNumber(nextVal);
+        if (num > 0) {
+          summary.cashStandbyDanaDarurat = num;
+        }
+      }
+
+      // Check Total Investment
+      if (cellTextLower === 'total investment' || cellTextLower === 'total investasi' || cellTextLower.includes('portofolio investasi')) {
+        const nextVal = row[c + 1] || row[c + 2];
+        const num = parseCurrencyToNumber(nextVal);
+        if (num > 0) {
+          summary.totalInvestment = num;
+        }
+      }
+
+      // Check Account Balances section header
+      if (cellTextLower === 'nama akun') {
+        readingAccountSection = true;
+      }
+
+      // Read account rows under "Nama Akun"
+      if (readingAccountSection && cellTextLower !== 'nama akun') {
+        if (cellTextLower.startsWith('total pemasukan') || cellTextLower.startsWith('dana darurat') || cellTextLower.startsWith('jenis budgeting')) {
+          readingAccountSection = false;
+        } else {
+          const nextVal = row[c + 1];
+          if (nextVal !== undefined && nextVal !== '') {
+            const num = parseCurrencyToNumber(nextVal);
+            if (summary.accountBalances) {
+              summary.accountBalances[cellText] = num;
+            }
+          }
+        }
+      }
+
+      // Check Emergency Fund
+      if (cellTextLower.includes('dana darurat (blu bca)') || cellTextLower.includes('dana darurat saat ini')) {
+        const nextVal = row[c + 1];
+        const num = parseCurrencyToNumber(nextVal);
+        if (num > 0) {
+          summary.emergencyFund = {
+            ...(summary.emergencyFund || { target: 12000000, kekurangan: 0, persentase: 0 }),
+            current: num
+          };
+        }
+      }
+
+      if (cellTextLower.includes('target dana darurat')) {
+        const nextVal = row[c + 1];
+        const num = parseCurrencyToNumber(nextVal);
+        if (num > 0 && summary.emergencyFund) {
+          summary.emergencyFund.target = num;
+        }
+      }
+    }
+  });
+
+  return { transactions, summary };
 }
 
 /**

@@ -29,9 +29,9 @@ interface ProjectSyncManagerProps {
   user: User | null;
   currentSpreadsheetId: string;
   currentSheetName: string;
-  onSaveProjectConfig: (spreadsheetId: string, sheetName: string) => void;
+  onSaveProjectConfig: (spreadsheetId: string, sheetName: string, detectedSheets?: string[]) => void;
   onLogin: () => Promise<void>;
-  onSyncNow: () => Promise<void>;
+  onSyncNow: (targetId?: string, targetSheet?: string) => Promise<void>;
   isSyncing: boolean;
   settings?: GlassSettings;
   onClose?: () => void;
@@ -190,7 +190,8 @@ export const ProjectSyncManager: React.FC<ProjectSyncManagerProps> = ({
 
   // Save manual/picker selection
   const handleSaveAndSync = async (targetId?: string, targetSheet?: string) => {
-    const idToSave = extractSpreadsheetId(targetId || inputUrlOrId);
+    const rawTarget = targetId || inputUrlOrId;
+    const idToSave = extractSpreadsheetId(rawTarget);
     const sheetToSave = targetSheet || inputSheetName || 'Sheet1';
 
     if (!idToSave) {
@@ -198,8 +199,13 @@ export const ProjectSyncManager: React.FC<ProjectSyncManagerProps> = ({
       return;
     }
 
-    onSaveProjectConfig(idToSave, sheetToSave);
-    await onSyncNow();
+    const detectedSheets =
+      validationResult?.sheets && validationResult.sheets.length > 0
+        ? validationResult.sheets
+        : undefined;
+
+    onSaveProjectConfig(idToSave, sheetToSave, detectedSheets);
+    await onSyncNow(idToSave, sheetToSave);
     if (onClose) onClose();
   };
 

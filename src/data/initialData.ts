@@ -67,6 +67,42 @@ export const INITIAL_TRANSACTIONS_AGUSTUS: Transaction[] = [
   { id: 'tx-ag-22', bulan: 'Agustus', kategori: 'Jajan', akun: 'Bank BCA', tipe: 'Expense', jumlah: 85000, catatan: 'Beli Martabak & Terang Bulan' }
 ];
 
+export const INITIAL_TRANSACTIONS_JULI: Transaction[] = [
+  { id: 'tx-ju-1', bulan: 'Juli', kategori: 'Salary', akun: 'Bank BCA', tipe: 'Income', jumlah: 9055307, catatan: 'Gaji MYPAK + Bonus Juli' },
+  { id: 'tx-ju-2', bulan: 'Juli', kategori: 'Saldo Awal', akun: 'Seabank', tipe: 'Saldo Bulan Lalu', jumlah: 3200000, catatan: 'Saldo awal Tabungan Standby Juni' },
+  { id: 'tx-ju-3', bulan: 'Juli', kategori: 'Saldo Awal', akun: 'Investasi', tipe: 'Saldo Bulan Lalu', jumlah: 45000000, catatan: 'Net worth akhir Juni' },
+  { id: 'tx-ju-4', bulan: 'Juli', kategori: 'Saldo Awal', akun: 'Blu BCA - Savings', tipe: 'Saldo Bulan Lalu', jumlah: 350000, catatan: 'Saldo awal Dana Darurat' },
+  { id: 'tx-ju-5', bulan: 'Juli', kategori: 'Saldo Awal', akun: 'Bank BCA', tipe: 'Saldo Bulan Lalu', jumlah: 60000, catatan: 'Saldo awal BANK BCA' },
+  { id: 'tx-ju-6', bulan: 'Juli', kategori: 'Uang Bulanan', akun: 'Bank BCA', tipe: 'Expense', jumlah: 2500000, catatan: 'Uang bulanan keluarga & makan' },
+  { id: 'tx-ju-7', bulan: 'Juli', kategori: 'Transfer Internal', akun: 'Bank BCA', tipe: 'Transfer Keluar', jumlah: 3000000, catatan: 'Top up investasi Pluang' },
+  { id: 'tx-ju-8', bulan: 'Juli', kategori: 'Transfer Internal', akun: 'Investasi', tipe: 'Transfer Masuk', jumlah: 3000000, catatan: 'Top up Pluang' },
+  { id: 'tx-ju-9', bulan: 'Juli', kategori: 'Listrik', akun: 'Bank BCA', tipe: 'Transfer Keluar', jumlah: 300000, catatan: 'Bayar listrik PLN' },
+  { id: 'tx-ju-10', bulan: 'Juli', kategori: 'Transport', akun: 'Bank BCA', tipe: 'Expense', jumlah: 450000, catatan: 'Transport & Bensin bulanan' },
+  { id: 'tx-ju-11', bulan: 'Juli', kategori: 'Dating', akun: 'Bank BCA', tipe: 'Expense', jumlah: 400000, catatan: 'Dating & Kuliner weekend' }
+];
+
+export const INITIAL_TRANSACTIONS_JUNI: Transaction[] = [
+  { id: 'tx-jn-1', bulan: 'Juni', kategori: 'Salary', akun: 'Bank BCA', tipe: 'Income', jumlah: 5916058, catatan: 'Gaji MYPAK Juni' },
+  { id: 'tx-jn-2', bulan: 'Juni', kategori: 'Saldo Awal', akun: 'Seabank', tipe: 'Saldo Bulan Lalu', jumlah: 3000000, catatan: 'Saldo awal Standby' },
+  { id: 'tx-jn-3', bulan: 'Juni', kategori: 'Saldo Awal', akun: 'Investasi', tipe: 'Saldo Bulan Lalu', jumlah: 46500000, catatan: 'Net worth akhir Mei' },
+  { id: 'tx-jn-4', bulan: 'Juni', kategori: 'Saldo Awal', akun: 'Blu BCA - Savings', tipe: 'Saldo Bulan Lalu', jumlah: 300000, catatan: 'Saldo awal Dana Darurat' },
+  { id: 'tx-jn-5', bulan: 'Juni', kategori: 'Uang Bulanan', akun: 'Bank BCA', tipe: 'Expense', jumlah: 2000000, catatan: 'Kebutuhan pokok' }
+];
+
+export const INITIAL_TRANSACTIONS_MEI: Transaction[] = [
+  { id: 'tx-me-1', bulan: 'Mei', kategori: 'Salary', akun: 'Bank BCA', tipe: 'Income', jumlah: 5916058, catatan: 'Gaji MYPAK Mei' },
+  { id: 'tx-me-2', bulan: 'Mei', kategori: 'Saldo Awal', akun: 'Seabank', tipe: 'Saldo Bulan Lalu', jumlah: 2800000, catatan: 'Saldo awal Tabungan' },
+  { id: 'tx-me-3', bulan: 'Mei', kategori: 'Saldo Awal', akun: 'Investasi', tipe: 'Saldo Bulan Lalu', jumlah: 45800000, catatan: 'Net worth akhir April' },
+  { id: 'tx-me-4', bulan: 'Mei', kategori: 'Uang Bulanan', akun: 'Bank BCA', tipe: 'Expense', jumlah: 2000000, catatan: 'Kebutuhan bulanan' }
+];
+
+export const INITIAL_TRANSACTIONS_APRIL: Transaction[] = [
+  { id: 'tx-ap-1', bulan: 'April', kategori: 'Salary', akun: 'Bank BCA', tipe: 'Income', jumlah: 5916058, catatan: 'Gaji MYPAK April' },
+  { id: 'tx-ap-2', bulan: 'April', kategori: 'Saldo Awal', akun: 'Seabank', tipe: 'Saldo Bulan Lalu', jumlah: 2500000, catatan: 'Saldo Tabungan' },
+  { id: 'tx-ap-3', bulan: 'April', kategori: 'Saldo Awal', akun: 'Investasi', tipe: 'Saldo Bulan Lalu', jumlah: 45500000, catatan: 'Portofolio Investasi April' },
+  { id: 'tx-ap-4', bulan: 'April', kategori: 'Uang Bulanan', akun: 'Bank BCA', tipe: 'Expense', jumlah: 2000000, catatan: 'Kebutuhan bulanan' }
+];
+
 export const DEFAULT_MONTH_SHEETS = [
   'APRIL',
   'MEI',
@@ -86,7 +122,30 @@ export const INITIAL_TRANSACTIONS_BY_MONTH: Record<string, Transaction[]> = {
   'SEPTEMBER': INITIAL_TRANSACTIONS,
   'September': INITIAL_TRANSACTIONS,
   'AGUSTUS': INITIAL_TRANSACTIONS_AGUSTUS,
-  'Agustus': INITIAL_TRANSACTIONS_AGUSTUS
+  'Agustus': INITIAL_TRANSACTIONS_AGUSTUS,
+  'JULI': INITIAL_TRANSACTIONS_JULI,
+  'Juli': INITIAL_TRANSACTIONS_JULI,
+  'JUNI': INITIAL_TRANSACTIONS_JUNI,
+  'Juni': INITIAL_TRANSACTIONS_JUNI,
+  'MEI': INITIAL_TRANSACTIONS_MEI,
+  'Mei': INITIAL_TRANSACTIONS_MEI,
+  'APRIL': INITIAL_TRANSACTIONS_APRIL,
+  'April': INITIAL_TRANSACTIONS_APRIL
+};
+
+export const INITIAL_SUMMARY_BY_MONTH: Record<string, { totalAset: number; cashStandby: number; totalInvestment: number }> = {
+  'SEPTEMBER': { totalAset: 55958496, cashStandby: 4253420, totalInvestment: 51705076 },
+  'September': { totalAset: 55958496, cashStandby: 4253420, totalInvestment: 51705076 },
+  'AGUSTUS': { totalAset: 51705076, cashStandby: 4100000, totalInvestment: 47605076 },
+  'Agustus': { totalAset: 51705076, cashStandby: 4100000, totalInvestment: 47605076 },
+  'JULI': { totalAset: 48858552, cashStandby: 3858552, totalInvestment: 45000000 },
+  'Juli': { totalAset: 48858552, cashStandby: 3858552, totalInvestment: 45000000 },
+  'JUNI': { totalAset: 50028872, cashStandby: 3528872, totalInvestment: 46500000 },
+  'Juni': { totalAset: 50028872, cashStandby: 3528872, totalInvestment: 46500000 },
+  'MEI': { totalAset: 49166700, cashStandby: 3366700, totalInvestment: 45800000 },
+  'Mei': { totalAset: 49166700, cashStandby: 3366700, totalInvestment: 45800000 },
+  'APRIL': { totalAset: 48540000, cashStandby: 3040000, totalInvestment: 45500000 },
+  'April': { totalAset: 48540000, cashStandby: 3040000, totalInvestment: 45500000 }
 };
 
 export const INITIAL_BUDGETS: BudgetCategory[] = [
