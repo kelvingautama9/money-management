@@ -243,63 +243,93 @@ export const InvestmentPortfolio: React.FC<InvestmentPortfolioProps> = ({
           </div>
         </div>
 
-        {/* Overview Cards Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 my-6">
-          <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
-              Total Valuasi Portofolio
-            </span>
-            <span className="text-xl font-bold text-white font-mono block">
-              {formatRupiah(totalCurrentInvestment)}
-            </span>
-            <span className="text-[10px] text-emerald-400 block mt-1">
-              +{formatRupiah(assets.reduce((sum, a) => sum + (a.depositWd || 0), 0))} Injeksi DCA
-            </span>
-          </div>
-
-          {assets.map((asset) => (
-            <div
-              key={asset.nama}
-              className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 relative group hover:border-white/25 transition-all"
-            >
-              <div className="flex items-start justify-between mb-1">
-                <div className="flex items-center gap-1.5 min-w-0">
-                  {getAssetIcon(asset.nama)}
-                  <span className="text-xs font-bold text-white truncate">{asset.nama}</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => handleOpenEdit(asset)}
-                    className="p-1 rounded-lg bg-white/5 hover:bg-white/15 text-slate-400 hover:text-white transition"
-                    title="Edit Aset / Broker"
-                  >
-                    <Pencil className="w-3 h-3" />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(asset.nama)}
-                    className="p-1 rounded-lg bg-white/5 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 transition"
-                    title="Hapus Aset / Broker"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </button>
-                </div>
-              </div>
-
-              <span className="text-lg font-bold text-white font-mono block mt-1">
-                {formatRupiah(asset.nilaiAkhirBulan)}
+        {/* Total Valuasi Portofolio Hero Banner */}
+        <div className="my-5 p-4 sm:p-5 rounded-2xl sm:rounded-3xl bg-gradient-to-r from-sky-950/40 via-blue-950/25 to-indigo-950/40 border border-sky-500/25 relative overflow-hidden">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 relative z-10">
+            <div>
+              <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-sky-300 block mb-1">
+                Total Valuasi Portofolio
               </span>
-
-              <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/5 text-[10px]">
-                <span className="text-slate-400">Porsi Alokasi:</span>
-                <span className="font-bold text-sky-300">
-                  {totalCurrentInvestment > 0
-                    ? ((asset.nilaiAkhirBulan / totalCurrentInvestment) * 100).toFixed(1)
-                    : '0'}
-                  %
+              <div className="flex flex-wrap items-baseline gap-2 sm:gap-3">
+                <span className="text-2xl sm:text-3xl font-black text-white font-mono tracking-tight">
+                  {formatRupiah(totalCurrentInvestment)}
+                </span>
+                <span className="text-[11px] font-bold text-emerald-400 bg-emerald-500/15 px-2.5 py-0.5 rounded-full border border-emerald-500/30 inline-flex items-center gap-1">
+                  +{formatRupiah(assets.reduce((sum, a) => sum + (a.depositWd || 0), 0))} DCA
                 </span>
               </div>
             </div>
-          ))}
+
+            <div className="flex items-center gap-2 text-xs text-slate-400">
+              <span className="px-2.5 py-1 rounded-xl bg-white/5 border border-white/10 text-slate-300 font-medium text-[11px]">
+                {assets.length} Broker / Aset Terdaftar
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Compact Broker & Asset Cards (Optimized 2-column mobile grid) */}
+        <div className="space-y-2 mb-6">
+          <div className="flex items-center justify-between px-1">
+            <span className="text-xs font-bold text-slate-300">Daftar Broker & Aset Investasi</span>
+            <span className="text-[10px] text-slate-400 font-medium">Alokasi Total: 100%</span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-3">
+            {assets.map((asset) => {
+              const allocationPct = totalCurrentInvestment > 0
+                ? ((asset.nilaiAkhirBulan / totalCurrentInvestment) * 100).toFixed(1)
+                : '0';
+
+              return (
+                <div
+                  key={asset.nama}
+                  className="p-2.5 sm:p-3.5 rounded-xl sm:rounded-2xl bg-white/[0.03] border border-white/10 relative group hover:border-sky-500/30 transition-all flex flex-col justify-between"
+                >
+                  <div className="flex items-start justify-between gap-1 mb-1.5">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <div className="shrink-0 scale-90 sm:scale-100">
+                        {getAssetIcon(asset.nama)}
+                      </div>
+                      <span className="text-[11px] sm:text-xs font-bold text-white truncate" title={asset.nama}>
+                        {asset.nama}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-0.5 shrink-0 opacity-80 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={() => handleOpenEdit(asset)}
+                        className="p-1 rounded-md bg-white/5 hover:bg-white/15 text-slate-400 hover:text-white transition"
+                        title="Edit Aset / Broker"
+                      >
+                        <Pencil className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(asset.nama)}
+                        className="p-1 rounded-md bg-white/5 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 transition"
+                        title="Hapus Aset / Broker"
+                      >
+                        <Trash2 className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="my-1">
+                    <span className="text-xs sm:text-base font-bold text-white font-mono block tracking-tight truncate">
+                      {formatRupiah(asset.nilaiAkhirBulan)}
+                    </span>
+                  </div>
+
+                  <div className="pt-1.5 border-t border-white/5 flex items-center justify-between text-[9px] sm:text-[10px]">
+                    <span className="text-slate-400">Porsi:</span>
+                    <span className="font-bold text-sky-300 bg-sky-500/10 px-1.5 py-0.2 rounded border border-sky-500/20">
+                      {allocationPct}%
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         {/* Chart Section */}

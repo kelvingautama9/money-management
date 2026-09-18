@@ -52,9 +52,13 @@ export const AccountBalancesCard: React.FC<AccountBalancesCardProps> = ({ accoun
               <span className="text-sm font-bold text-white font-mono block">
                 {formatRupiah(acc.totalSaldo)}
               </span>
-              {acc.spendBulanIniPercent !== undefined && acc.spendBulanIniPercent > 0 && (
+              {acc.spendBulanIniPercent !== undefined && acc.spendBulanIniPercent > 0 ? (
                 <span className="text-[10px] text-amber-300 mt-1 block font-medium">
                   Spend: {acc.spendBulanIniPercent}%
+                </span>
+              ) : (
+                <span className="text-[10px] text-emerald-400 mt-1 block font-medium">
+                  Siap Pakai
                 </span>
               )}
             </div>

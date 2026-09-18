@@ -1,7 +1,6 @@
 import React from 'react';
 import { GlassSettings } from '../types';
 import { triggerHaptic } from '../lib/haptics';
-import { motion } from 'motion/react';
 import {
   LayoutDashboard,
   PieChart,
@@ -131,29 +130,23 @@ export const NavigationTabBar: React.FC<NavigationTabBarProps> = ({
             >
               {/* Liquid Sliding Indicator Pill */}
               {isActive && (
-                <motion.div
-                  layoutId="liquidActiveNavIndicator"
-                  className={`absolute inset-0 rounded-full ${activePillBg}`}
-                  transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+                <div
+                  className={`absolute inset-0 rounded-full ${activePillBg} transition-all duration-300 animate-in fade-in zoom-in-95 duration-200`}
                 />
               )}
 
-              {/* Tab Content (Icon + dynamic label when active matching Image 4) */}
+              {/* Tab Content (Icon + dynamic label when active) */}
               <span className="relative z-10 flex items-center gap-1.5">
                 <span className="shrink-0 transition-transform duration-200 group-hover:scale-105">
                   {tab.icon}
                 </span>
 
                 {isActive && (
-                  <motion.span
-                    initial={{ opacity: 0, x: -4, scale: 0.95 }}
-                    animate={{ opacity: 1, x: 0, scale: 1 }}
-                    exit={{ opacity: 0, x: -4 }}
-                    transition={{ duration: 0.18 }}
-                    className="text-xs font-bold tracking-tight whitespace-nowrap"
+                  <span
+                    className="text-xs font-bold tracking-tight whitespace-nowrap animate-in fade-in slide-in-from-left-1 duration-200"
                   >
                     {tab.label}
-                  </motion.span>
+                  </span>
                 )}
               </span>
             </button>

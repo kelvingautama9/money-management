@@ -219,7 +219,7 @@ export const AccountsPage: React.FC<AccountsPageProps> = ({
           </button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3.5">
           {accounts.map((acc) => {
             const isInvestasi = acc.nama.toLowerCase().includes('investasi');
             const percentOfLiquid =
@@ -229,53 +229,53 @@ export const AccountsPage: React.FC<AccountsPageProps> = ({
               <GlassContainer
                 key={acc.nama}
                 settings={settings}
-                className="p-4 flex flex-col justify-between relative group hover:border-white/25 transition-all"
+                className="p-2.5 sm:p-4 rounded-xl sm:rounded-2xl flex flex-col justify-between relative group hover:border-white/25 transition-all"
               >
                 <div>
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <div className="p-2 rounded-xl bg-white/5 border border-white/10 shrink-0">
+                  <div className="flex items-start justify-between gap-1 mb-1.5 sm:mb-2">
+                    <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                      <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-white/5 border border-white/10 shrink-0">
                         {getAccountIcon(acc.nama)}
                       </div>
                       <div className="min-w-0">
-                        <h4 className="font-bold text-white text-xs sm:text-sm truncate">{acc.nama}</h4>
-                        <span className="text-[10px] text-slate-400 block">
-                          {isInvestasi ? 'Aset Investasi' : 'Rekening Operasional'}
+                        <h4 className="font-bold text-white text-xs sm:text-sm truncate" title={acc.nama}>{acc.nama}</h4>
+                        <span className="text-[9px] sm:text-[10px] text-slate-400 block truncate">
+                          {isInvestasi ? 'Aset Investasi' : 'Operasional'}
                         </span>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-0.5 shrink-0 opacity-80 group-hover:opacity-100 transition-opacity">
                       <button
                         onClick={() => handleOpenEdit(acc)}
-                        className="p-1 rounded-lg bg-white/5 hover:bg-white/15 text-slate-400 hover:text-white transition"
+                        className="p-1 rounded-md bg-white/5 hover:bg-white/15 text-slate-400 hover:text-white transition"
                         title="Edit Rekening / Wallet"
                       >
-                        <Pencil className="w-3 h-3" />
+                        <Pencil className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
                       </button>
                       <button
                         onClick={() => handleDelete(acc.nama)}
-                        className="p-1 rounded-lg bg-white/5 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 transition"
+                        className="p-1 rounded-md bg-white/5 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 transition"
                         title="Hapus Rekening / Wallet"
                       >
-                        <Trash2 className="w-3 h-3" />
+                        <Trash2 className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
                       </button>
                     </div>
                   </div>
 
-                  <div className="my-2">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">
+                  <div className="my-1.5 sm:my-2">
+                    <span className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">
                       Saldo Berjalan
                     </span>
-                    <span className="text-lg sm:text-xl font-bold font-mono text-white block">
+                    <span className="text-sm sm:text-lg font-bold font-mono text-white block tracking-tight truncate">
                       {formatRupiah(acc.totalSaldo)}
                     </span>
                   </div>
                 </div>
 
-                <div className="pt-2 border-t border-white/5 flex items-center justify-between text-[10px] text-slate-400">
-                  <span>Saldo Awal: {formatRupiah(acc.saldoAwal)}</span>
-                  {!isInvestasi && <span className="text-sky-300 font-medium">{percentOfLiquid}% Kas</span>}
+                <div className="pt-1.5 sm:pt-2 border-t border-white/5 flex items-center justify-between text-[9px] sm:text-[10px] text-slate-400">
+                  <span className="truncate">Awal: {formatRupiah(acc.saldoAwal)}</span>
+                  {!isInvestasi && <span className="text-sky-300 font-medium shrink-0 ml-1">{percentOfLiquid}%</span>}
                 </div>
               </GlassContainer>
             );

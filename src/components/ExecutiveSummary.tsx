@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { GlassContainer } from './GlassContainer';
 import { GlassSettings, BudgetCategory, AccountBalance, Transaction, InvestmentAsset, InvestmentHistory } from '../types';
 import { formatRupiah } from '../lib/sheetsApi';
@@ -73,7 +73,51 @@ export const ExecutiveSummary: React.FC<ExecutiveSummaryProps> = ({
   onSelectMonthSheet
 }) => {
   const [hideBalance, setHideBalance] = useState(false);
+  const [centerWalletIndex, setCenterWalletIndex] = useState(0);
   const walletScrollRef = useRef<HTMLDivElement>(null);
+
+  // Dynamic center detection for cascade magnification effect
+  const updateCenterWallet = useCallback(() => {
+    if (!walletScrollRef.current) return;
+    const container = walletScrollRef.current;
+    const containerCenter = container.scrollLeft + container.clientWidth / 2;
+    const children = Array.from(container.children) as HTMLElement[];
+    let closestIndex = 0;
+    let minDistance = Infinity;
+
+    children.forEach((child, index) => {
+      const childCenter = child.offsetLeft + child.offsetWidth / 2;
+      const distance = Math.abs(containerCenter - childCenter);
+      if (distance < minDistance) {
+        minDistance = distance;
+        closestIndex = index;
+      }
+    });
+
+    setCenterWalletIndex(closestIndex);
+  }, []);
+
+  useEffect(() => {
+    const container = walletScrollRef.current;
+    if (!container) return;
+    updateCenterWallet();
+    container.addEventListener('scroll', updateCenterWallet, { passive: true });
+    window.addEventListener('resize', updateCenterWallet);
+    return () => {
+      container.removeEventListener('scroll', updateCenterWallet);
+      window.removeEventListener('resize', updateCenterWallet);
+    };
+  }, [updateCenterWallet, accounts.length]);
+
+  const scrollToWallet = (index: number) => {
+    if (!walletScrollRef.current) return;
+    const container = walletScrollRef.current;
+    const child = container.children[index] as HTMLElement;
+    if (child) {
+      triggerHaptic('selection');
+      child.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    }
+  };
 
   const spendRatio = totalPemasukan > 0 ? ((totalPengeluaran / totalPemasukan) * 100).toFixed(1) : '0';
   const saveRatio = totalPemasukan > 0 ? ((sisaSaldoIncome / totalPemasukan) * 100).toFixed(1) : '0';
@@ -423,56 +467,90 @@ export const ExecutiveSummary: React.FC<ExecutiveSummaryProps> = ({
           </button>
         </div>
 
-        {/* Swipe Carousel with touch-pan-x, direct horizontal swipe */}
+        {/* Swipe Carousel with touch-pan-x, direct horizontal swipe & Cascade Center Focus */}
         <div
           ref={walletScrollRef}
-          className="flex items-center gap-3 overflow-x-auto no-scrollbar py-1 w-full max-w-full min-w-0 touch-pan-x"
+          className="flex items-center gap-2.5 sm:gap-3.5 overflow-x-auto no-scrollbar py-3 px-2 sm:px-4 w-full max-w-full min-w-0 touch-pan-x snap-x snap-mandatory"
           style={{
-            scrollSnapType: 'x mandatory',
             WebkitOverflowScrolling: 'touch'
           }}
         >
-          {accounts.map((acc, idx) => (
-            <div
-              key={acc.nama}
-              style={{
-                background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%)',
-                backdropFilter: 'blur(20px)',
-                WebkitBackdropFilter: 'blur(20px)'
-              }}
-              className="p-4 rounded-2xl border border-white/15 min-w-[200px] sm:min-w-[240px] shrink-0 scroll-snap-align-start hover:border-white/30 transition-all"
-            >
-              <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
-                <span className="font-semibold text-white tracking-tight flex items-center gap-1.5">
-                  <CreditCard className="w-3.5 h-3.5 text-sky-400" />
-                  {acc.nama}
-                </span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-slate-300 font-mono">
-                  #{idx + 1}
-                </span>
-              </div>
+          {accounts.map((acc, idx) => {
+            const isCenter = idx === centerWalletIndex;
+            const isNegative = acc.totalSaldo < 0;
 
-              <div className="mt-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] text-slate-400">Saldo Terkini:</span>
-                  {acc.totalSaldo < 0 && (
-                    <span className="text-[10px] font-bold text-rose-400 bg-rose-500/20 px-1.5 py-0.5 rounded border border-rose-500/30">
-                      Minus
-                    </span>
+            return (
+              <div
+                key={acc.nama}
+                onClick={() => scrollToWallet(idx)}
+                style={{
+                  background: isCenter
+                    ? 'linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.04) 100%)'
+                    : 'linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.01) 100%)',
+                  backdropFilter: 'blur(20px)',
+                  WebkitBackdropFilter: 'blur(20px)'
+                }}
+                className={`w-[172px] sm:w-[215px] h-[106px] sm:h-[114px] shrink-0 p-3 sm:p-3.5 rounded-2xl flex flex-col justify-between snap-center transition-all duration-300 ease-out transform cursor-pointer select-none ${
+                  isCenter
+                    ? 'scale-[1.03] sm:scale-105 border-2 border-sky-400/60 shadow-xl shadow-sky-500/10 z-10 ring-2 ring-sky-400/20'
+                    : 'scale-[0.95] border border-white/10 opacity-75 hover:opacity-100 hover:scale-[0.98]'
+                }`}
+              >
+                {/* Top header row: Bank name + Badge/Status (fixed height, uniform) */}
+                <div className="flex items-center justify-between text-xs gap-1">
+                  <span className="font-semibold text-white tracking-tight flex items-center gap-1.5 truncate">
+                    <CreditCard className={`w-3.5 h-3.5 shrink-0 ${isCenter ? 'text-sky-400' : 'text-slate-400'}`} />
+                    <span className="truncate">{acc.nama}</span>
+                  </span>
+                  <span className={`text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded font-mono font-bold shrink-0 ${
+                    isNegative 
+                      ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' 
+                      : 'bg-white/10 text-slate-300'
+                  }`}>
+                    {isNegative ? 'Minus' : `#${idx + 1}`}
+                  </span>
+                </div>
+
+                {/* Middle row: Saldo Terkini + Amount */}
+                <div className="my-auto py-0.5">
+                  <span className="text-[10px] text-slate-400 block leading-tight">Saldo Terkini</span>
+                  <span className={`text-sm sm:text-base font-black tracking-tight truncate block ${isNegative ? 'text-rose-400' : 'text-white'}`}>
+                    {displayMoney(acc.totalSaldo)}
+                  </span>
+                </div>
+
+                {/* Bottom row: Uniform Serapan or Status (Guarantees mathematical symmetry for all cards) */}
+                <div className="pt-1.5 border-t border-white/10 flex items-center justify-between text-[10px] leading-tight">
+                  {acc.spendBulanIniPercent !== undefined && acc.spendBulanIniPercent > 0 ? (
+                    <>
+                      <span className="text-slate-400">Serapan:</span>
+                      <span className="text-rose-300 font-bold">{acc.spendBulanIniPercent}%</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-slate-400">Status:</span>
+                      <span className="text-emerald-400 font-medium">Siap Pakai</span>
+                    </>
                   )}
                 </div>
-                <span className={`text-base sm:text-lg font-black tracking-tight ${acc.totalSaldo < 0 ? 'text-rose-400' : 'text-white'}`}>
-                  {displayMoney(acc.totalSaldo)}
-                </span>
               </div>
+            );
+          })}
+        </div>
 
-              {acc.spendBulanIniPercent !== undefined && acc.spendBulanIniPercent > 0 && (
-                <div className="mt-3 pt-2 border-t border-white/10 flex items-center justify-between text-[10px]">
-                  <span className="text-slate-400">Serapan:</span>
-                  <span className="text-rose-300 font-bold">{acc.spendBulanIniPercent}%</span>
-                </div>
-              )}
-            </div>
+        {/* Carousel indicator dots */}
+        <div className="flex items-center justify-center gap-1.5 pt-1">
+          {accounts.map((acc, idx) => (
+            <button
+              key={acc.nama}
+              onClick={() => scrollToWallet(idx)}
+              className={`transition-all duration-300 rounded-full ${
+                idx === centerWalletIndex
+                  ? 'w-5 h-1.5 bg-sky-400'
+                  : 'w-1.5 h-1.5 bg-white/20 hover:bg-white/40'
+              }`}
+              aria-label={`Pilih ${acc.nama}`}
+            />
           ))}
         </div>
       </div>
