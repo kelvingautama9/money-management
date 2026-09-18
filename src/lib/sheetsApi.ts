@@ -494,7 +494,7 @@ export async function createNewProjectSpreadsheet(
 ): Promise<{ spreadsheetId: string; spreadsheetUrl: string; sheetName: string }> {
   const payload = {
     properties: {
-      title: title || 'Liquid Glass Financial - Mutasi & Cashflow'
+      title: title || 'Financial Tracker - Mutasi & Cashflow'
     },
     sheets: [
       {
