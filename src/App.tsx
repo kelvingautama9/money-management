@@ -52,9 +52,11 @@ import { AccountBalancesCard } from './components/AccountBalancesCard';
 import { TransactionManager } from './components/TransactionManager';
 import { GlassSettingsModal } from './components/GlassSettingsModal';
 import { AutomatedReportModal } from './components/AutomatedReportModal';
+import { SmartAnalysisModal } from './components/SmartAnalysisModal';
 import { GlassMenuPopup } from './components/GlassMenuPopup';
 import { GlassButton } from './components/GlassButton';
 import { ProjectSyncManagerModal } from './components/ProjectSyncManagerModal';
+import { RetirementInvestmentCalculator } from './components/RetirementInvestmentCalculator';
 import {
   DEFAULT_MONTH_SHEETS,
   INITIAL_TRANSACTIONS_BY_MONTH,
@@ -90,6 +92,8 @@ export default function App() {
   });
   const [isGlassModalOpen, setIsGlassModalOpen] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [isSmartAnalysisOpen, setIsSmartAnalysisOpen] = useState(false);
+  const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
   const [isMenuPopupOpen, setIsMenuPopupOpen] = useState(false);
   const [isProjectManagerOpen, setIsProjectManagerOpen] = useState(false);
 
@@ -134,8 +138,49 @@ export default function App() {
       INITIAL_TRANSACTIONS
     );
   });
-  const [assets, setAssets] = useState<InvestmentAsset[]>(INITIAL_INVESTMENT_ASSETS);
+  const [assets, setAssets] = useState<InvestmentAsset[]>(() => {
+    try {
+      const saved = localStorage.getItem('kelvin_financial_custom_assets');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return INITIAL_INVESTMENT_ASSETS;
+  });
   const [history, setHistory] = useState<InvestmentHistory[]>(INITIAL_INVESTMENT_HISTORY);
+
+  const [customBudgets, setCustomBudgets] = useState<BudgetCategory[]>(() => {
+    try {
+      const saved = localStorage.getItem('kelvin_financial_custom_budgets');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return INITIAL_BUDGETS;
+  });
+
+  const [customAccountsList, setCustomAccountsList] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('kelvin_financial_accounts_list');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return [
+      'Bank BCA',
+      'Seabank',
+      'Blu BCA - Savings',
+      'Investasi',
+      'Allo Bank',
+      'Jago-Transport',
+      'Jago-Entertainment',
+      'Blu BCA - Date',
+      'Cash'
+    ];
+  });
 
   // Precalculated summary values from Google Sheets (columns H..N) or monthly defaults
   const [sheetSummaries, setSheetSummaries] = useState<Record<string, SheetSummary>>(() => {
@@ -267,28 +312,24 @@ export default function App() {
 
   // 3. Dynamic Budget Status Calculation
   const budgets: BudgetCategory[] = useMemo(() => {
-    return INITIAL_BUDGETS.map((initBudget) => {
-      let relevantSpend = 0;
-      if (initBudget.nama.toLowerCase().includes('listrik')) {
-        relevantSpend = transactions
-          .filter((t) => t.kategori === 'Listrik' && t.tipe === 'Expense')
-          .reduce((sum, t) => sum + t.jumlah, 0);
-      } else if (initBudget.nama.toLowerCase().includes('entertainment')) {
-        relevantSpend = transactions
-          .filter((t) => t.kategori === 'Entertainment' && t.tipe === 'Expense')
-          .reduce((sum, t) => sum + t.jumlah, 0);
-      } else if (initBudget.nama.toLowerCase().includes('transport')) {
-        relevantSpend = transactions
-          .filter((t) => t.kategori === 'Transport' && t.tipe === 'Expense')
-          .reduce((sum, t) => sum + t.jumlah, 0);
-      } else if (initBudget.nama.toLowerCase().includes('dating')) {
-        relevantSpend = transactions
-          .filter((t) => t.kategori === 'Dating' && t.tipe === 'Expense')
-          .reduce((sum, t) => sum + t.jumlah, 0);
-      }
+    return customBudgets.map((initBudget) => {
+      const budgetLower = initBudget.nama.toLowerCase();
+      const relevantSpend = transactions
+        .filter((t) => {
+          const catLower = t.kategori.toLowerCase();
+          return (
+            (catLower === budgetLower ||
+              (catLower.includes('listrik') && budgetLower.includes('listrik')) ||
+              (catLower.includes('entertainment') && budgetLower.includes('entertainment')) ||
+              (catLower.includes('transport') && budgetLower.includes('transport')) ||
+              (catLower.includes('dating') && budgetLower.includes('dating'))) &&
+            t.tipe === 'Expense'
+          );
+        })
+        .reduce((sum, t) => sum + t.jumlah, 0);
 
-      const totalSaldo = initBudget.saldoAwal + initBudget.budgeting;
-      const sisa = totalSaldo - relevantSpend;
+      const totalSaldo = (initBudget.saldoAwal || 0) + (initBudget.budgeting || initBudget.targetBulanan || 0);
+      const sisa = Math.max(0, totalSaldo - relevantSpend);
 
       return {
         ...initBudget,
@@ -298,27 +339,17 @@ export default function App() {
         keterangan: sisa > 0 ? `Sisa: ${formatRupiah(sisa)}` : 'Anggaran Terserap'
       };
     });
-  }, [transactions]);
+  }, [customBudgets, transactions]);
 
   // 4. Dynamic Account Balances (Calculated from transactions and Google Sheet summary)
   const accounts: AccountBalance[] = useMemo(() => {
-    const accountNames = [
-      'Bank BCA',
-      'Seabank',
-      'Blu BCA - Savings',
-      'Investasi',
-      'Allo Bank',
-      'Jago-Transport',
-      'Jago-Entertainment',
-      'Blu BCA - Date',
-      'Cash'
-    ];
+    const accountNames = customAccountsList;
 
     const defaultBaseBalances: Record<string, number> = {
       'Bank BCA': 8870,
       'Seabank': 3808000,
       'Blu BCA - Savings': 436550,
-      'Investasi': 53721362,
+      'Investasi': 51705076,
       'Allo Bank': 195340,
       'Jago-Transport': 592885,
       'Jago-Entertainment': 451751,
@@ -858,14 +889,23 @@ export default function App() {
       const cleanId = extractSpreadsheetId(spreadsheetId);
       if (token && cleanId) {
         try {
-          await appendRowToSheet(cleanId, sheetName, createdTx, token);
+          const appendRes = await appendRowToSheet(cleanId, sheetName, createdTx, token);
           setLastSynced(new Date());
+          if (appendRes && appendRes.rowIndex) {
+            createdTx.rowIndex = appendRes.rowIndex;
+            const updatedTxs = [createdTx, ...transactions];
+            setTransactions(updatedTxs);
+            try {
+              localStorage.setItem(`kelvin_financial_txs_${sheetName}`, JSON.stringify(updatedTxs));
+            } catch (e) {}
+          }
           setSyncNotice(
-            `Transaksi ${formatRupiah(createdTx.jumlah)} [${createdTx.kategori}] berhasil disimpan & otomatis tertambah ke Google Sheets tab ${sheetName}.`
+            `Transaksi ${formatRupiah(createdTx.jumlah)} [${createdTx.kategori}] berhasil disimpan & otomatis tertambah ke Google Sheets tab ${sheetName} (baris ${appendRes?.rowIndex || 'baru'}).`
           );
         } catch (e: any) {
           console.warn('Google sheets append error:', e);
           setSyncNotice(`Tersimpan lokal di bulan ${sheetName}. Catatan Google Sheet: ${e.message}`);
+          throw e;
         }
       }
     }
@@ -912,6 +952,92 @@ export default function App() {
         console.warn('Failed to clear remote row:', e);
       }
     }
+  };
+
+  // --- Budget CRUD Handlers ---
+  const handleAddBudget = (newBudget: BudgetCategory) => {
+    const next = [...customBudgets, newBudget];
+    setCustomBudgets(next);
+    try {
+      localStorage.setItem('kelvin_financial_custom_budgets', JSON.stringify(next));
+    } catch (e) {}
+    setSyncNotice(`Pos budget "${newBudget.nama}" berhasil ditambahkan.`);
+  };
+
+  const handleEditBudget = (id: string, updated: Partial<BudgetCategory>) => {
+    const next = customBudgets.map((b) => (b.id === id ? { ...b, ...updated } : b));
+    setCustomBudgets(next);
+    try {
+      localStorage.setItem('kelvin_financial_custom_budgets', JSON.stringify(next));
+    } catch (e) {}
+    setSyncNotice(`Pos budget berhasil diperbarui.`);
+  };
+
+  const handleDeleteBudget = (id: string) => {
+    const next = customBudgets.filter((b) => b.id !== id);
+    setCustomBudgets(next);
+    try {
+      localStorage.setItem('kelvin_financial_custom_budgets', JSON.stringify(next));
+    } catch (e) {}
+    setSyncNotice(`Pos budget telah dihapus.`);
+  };
+
+  // --- Asset CRUD Handlers ---
+  const handleAddAsset = (newAsset: InvestmentAsset) => {
+    const next = [...assets, newAsset];
+    setAssets(next);
+    try {
+      localStorage.setItem('kelvin_financial_custom_assets', JSON.stringify(next));
+    } catch (e) {}
+    setSyncNotice(`Aset "${newAsset.nama}" berhasil ditambahkan ke portofolio.`);
+  };
+
+  const handleEditAsset = (oldName: string, updatedAsset: InvestmentAsset) => {
+    const next = assets.map((a) => (a.nama === oldName ? updatedAsset : a));
+    setAssets(next);
+    try {
+      localStorage.setItem('kelvin_financial_custom_assets', JSON.stringify(next));
+    } catch (e) {}
+    setSyncNotice(`Aset "${updatedAsset.nama}" berhasil diperbarui.`);
+  };
+
+  const handleDeleteAsset = (name: string) => {
+    const next = assets.filter((a) => a.nama !== name);
+    setAssets(next);
+    try {
+      localStorage.setItem('kelvin_financial_custom_assets', JSON.stringify(next));
+    } catch (e) {}
+    setSyncNotice(`Aset "${name}" berhasil dihapus dari portofolio.`);
+  };
+
+  // --- Account CRUD Handlers ---
+  const handleAddAccount = (account: AccountBalance) => {
+    if (!customAccountsList.includes(account.nama)) {
+      const next = [...customAccountsList, account.nama];
+      setCustomAccountsList(next);
+      try {
+        localStorage.setItem('kelvin_financial_accounts_list', JSON.stringify(next));
+      } catch (e) {}
+      setSyncNotice(`Rekening "${account.nama}" berhasil ditambahkan.`);
+    }
+  };
+
+  const handleEditAccount = (oldName: string, updated: AccountBalance) => {
+    const next = customAccountsList.map((a) => (a === oldName ? updated.nama : a));
+    setCustomAccountsList(next);
+    try {
+      localStorage.setItem('kelvin_financial_accounts_list', JSON.stringify(next));
+    } catch (e) {}
+    setSyncNotice(`Rekening "${updated.nama}" berhasil diperbarui.`);
+  };
+
+  const handleDeleteAccount = (name: string) => {
+    const next = customAccountsList.filter((a) => a !== name);
+    setCustomAccountsList(next);
+    try {
+      localStorage.setItem('kelvin_financial_accounts_list', JSON.stringify(next));
+    } catch (e) {}
+    setSyncNotice(`Rekening "${name}" berhasil dihapus.`);
   };
 
   // --- Internal Account Transfer ---
@@ -986,10 +1112,10 @@ export default function App() {
       <div className="ambient-glow-3 bottom-[-100px] left-[20%]" />
 
       {/* Main Container - Optimized Margins for Screen Real Estate (Ultra Responsive) */}
-      <div className="relative z-20 w-full max-w-[98%] 2xl:max-w-[96%] mx-auto px-2 sm:px-4 lg:px-6 py-4 sm:py-6 space-y-6 min-w-0 overflow-x-clip pb-28 md:pb-8">
+      <div className="relative z-20 w-full max-w-[98%] 2xl:max-w-[96%] mx-auto px-2 sm:px-4 lg:px-6 py-4 sm:py-6 space-y-6 min-w-0 overflow-x-clip pb-28 sm:pb-32">
         {/* Ultra-Clean Modern Apple Top Bar */}
         <header className="flex items-center justify-between gap-3 py-1">
-          {/* Left: User profile & status */}
+          {/* Left: User profile & month */}
           <div className="flex items-center gap-2.5">
             <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-600 via-indigo-600 to-sky-500 p-0.5 shadow-md shrink-0">
               <div className="w-full h-full rounded-full bg-[#0d1024] flex items-center justify-center text-sm font-black text-sky-300">
@@ -1003,19 +1129,8 @@ export default function App() {
                 </h2>
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" title="Online" />
               </div>
-              <p className="text-[11px] text-slate-400 flex items-center gap-1.5">
+              <p className="text-[11px] text-slate-400">
                 <span className="font-semibold text-slate-200">{formattedSheetMonth}</span>
-                <span className="text-slate-600">•</span>
-                <button
-                  onClick={() => {
-                    triggerHaptic('light');
-                    setIsMenuPopupOpen(true);
-                  }}
-                  className="text-emerald-400/90 hover:text-emerald-300 font-medium transition cursor-pointer hover:underline"
-                  title="Klik untuk membuka menu & sinkronisasi Google Sheets"
-                >
-                  {user ? 'Sheets Connected ⚙' : 'Local Mode ⚙'}
-                </button>
               </p>
             </div>
           </div>
@@ -1108,10 +1223,9 @@ export default function App() {
           onToggleTheme={handleToggleTheme}
         />
 
-        {/* PAGE 1: SUMMARY */}
+        {/* PAGE 1: SUMMARY (Clean, focused executive cockpit) */}
         {activePage === 'summary' && (
           <div className="space-y-6 animate-in fade-in duration-300">
-            {/* Executive KPIs matching Images 3 & 4 with large balance, sparklines, swipeable wallets & quick actions */}
             <ExecutiveSummary
               totalAset={totalAset}
               cashStandbyDanaDarurat={cashStandbyDanaDarurat}
@@ -1128,26 +1242,12 @@ export default function App() {
               onNavigate={setActivePage}
               onSyncGoogleSheets={handleSyncFromSheets}
               onOpenProjectManager={() => setIsProjectManagerOpen(true)}
+              onOpenCalculator={() => setIsCalculatorOpen(true)}
               isSyncing={isSyncing}
               currentMonthSheet={sheetName}
               availableSheets={availableSheets}
               onSelectMonthSheet={handleSelectMonth}
             />
-
-            {/* Emergency Fund & Investment Trend Preview */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-1">
-                <EmergencyFundCard fund={emergencyFund} settings={glassSettings} />
-              </div>
-              <div className="lg:col-span-2">
-                <InvestmentPortfolio
-                  assets={assets}
-                  history={history}
-                  settings={glassSettings}
-                  totalProfit2026={1148790}
-                />
-              </div>
-            </div>
           </div>
         )}
 
@@ -1171,10 +1271,16 @@ export default function App() {
         {/* PAGE 3: BUDGETING ENVELOPES */}
         {activePage === 'budgeting' && (
           <div className="space-y-6 animate-in fade-in duration-300">
-            <BudgetingTracker budgets={budgets} settings={glassSettings} />
+            <BudgetingTracker
+              budgets={budgets}
+              settings={glassSettings}
+              onAddBudget={handleAddBudget}
+              onEditBudget={handleEditBudget}
+              onDeleteBudget={handleDeleteBudget}
+            />
 
             {/* Spending vs Envelope Detailed Insight */}
-            <div className="p-6 rounded-2xl bg-white/[0.03] border border-white/10 text-xs text-slate-300 leading-relaxed">
+            <div className="p-5 rounded-2xl bg-white/[0.03] border border-white/10 text-xs text-slate-300 leading-relaxed">
               <h4 className="text-sm font-bold text-white mb-2 flex items-center gap-2">
                 <PieChart className="w-4 h-4 text-amber-400" />
                 Mekanisme Rolling Budget & Sinking Fund
@@ -1196,6 +1302,11 @@ export default function App() {
               history={history}
               settings={glassSettings}
               totalProfit2026={1148790}
+              onAddAsset={handleAddAsset}
+              onEditAsset={handleEditAsset}
+              onDeleteAsset={handleDeleteAsset}
+              onOpenSmartAnalysis={() => setIsSmartAnalysisOpen(true)}
+              onOpenCalculator={() => setIsCalculatorOpen(true)}
             />
             <EmergencyFundCard fund={emergencyFund} settings={glassSettings} />
           </div>
@@ -1209,6 +1320,11 @@ export default function App() {
               settings={glassSettings}
               onTransfer={handleInternalTransfer}
               transactions={transactions}
+              totalNetWorth={totalAset}
+              totalInvestment={totalInvestment}
+              onAddAccount={handleAddAccount}
+              onEditAccount={handleEditAccount}
+              onDeleteAccount={handleDeleteAccount}
             />
           </div>
         )}
@@ -1262,6 +1378,16 @@ export default function App() {
         settings={glassSettings}
       />
 
+      {/* Smart Investment Analysis Modal */}
+      <SmartAnalysisModal
+        isOpen={isSmartAnalysisOpen}
+        onClose={() => setIsSmartAnalysisOpen(false)}
+        assets={assets}
+        history={history}
+        settings={glassSettings}
+        cashStandby={cashStandbyDanaDarurat}
+      />
+
       {/* Semi-Transparent Liquid Glass Popup Menu Container */}
       <GlassMenuPopup
         isOpen={isMenuPopupOpen}
@@ -1273,6 +1399,7 @@ export default function App() {
         onOpenReport={() => setIsReportModalOpen(true)}
         onOpenInspector={() => setIsGlassModalOpen(true)}
         onOpenProjectManager={() => setIsProjectManagerOpen(true)}
+        onOpenCalculator={() => setIsCalculatorOpen(true)}
         onSelectTheme={handleSelectTheme}
         isGoogleConnected={Boolean(user)}
         user={user}
@@ -1302,59 +1429,14 @@ export default function App() {
         settings={glassSettings}
       />
 
-      {/* Floating Liquid Glass Interface Bottom Pill (Mobile Only & hidden when modal open to prevent blocking buttons) */}
-      {(!isMenuPopupOpen && !isReportModalOpen && !isProjectManagerOpen && !isGlassModalOpen) && (
-        <div className="fixed bottom-4 inset-x-0 z-40 flex justify-center pointer-events-none px-3 md:hidden">
-          <div
-            style={{
-              background: glassSettings.themeMode === 'light' ? 'rgba(255, 255, 255, 0.92)' : glassSettings.themeMode === 'beige' ? 'rgba(255, 253, 248, 0.94)' : glassSettings.themeMode === 'midnight' ? 'rgba(5, 5, 8, 0.95)' : 'rgba(15, 20, 38, 0.85)',
-              borderColor: glassSettings.themeMode === 'light' ? 'rgba(203, 213, 225, 0.9)' : glassSettings.themeMode === 'beige' ? 'rgba(223, 213, 198, 0.95)' : 'rgba(255, 255, 255, 0.15)',
-              backdropFilter: 'blur(24px) saturate(190%)',
-              WebkitBackdropFilter: 'blur(24px) saturate(190%)',
-              boxShadow: '0 20px 40px -10px rgba(0, 0, 0, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.25)'
-            }}
-            className="pointer-events-auto flex items-center gap-1.5 p-1.5 rounded-full border text-xs font-semibold text-slate-200"
-          >
-            <button
-              onClick={() => {
-                triggerHaptic('selection');
-                setActivePage('summary');
-              }}
-              className={`px-3 py-1.5 rounded-full transition ${
-                activePage === 'summary'
-                  ? 'bg-white/20 text-white font-bold'
-                  : 'hover:text-white hover:bg-white/5 text-slate-300'
-              }`}
-            >
-              Dashboard
-            </button>
-            <button
-              onClick={() => {
-                triggerHaptic('selection');
-                setActivePage('cashflow');
-              }}
-              className={`px-3 py-1.5 rounded-full transition flex items-center gap-1 ${
-                activePage === 'cashflow'
-                  ? 'bg-emerald-500/25 text-emerald-300 font-bold border border-emerald-500/30'
-                  : 'hover:text-white hover:bg-white/5 text-slate-300'
-              }`}
-            >
-              <PlusCircle className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Cashflow</span>
-            </button>
-            <button
-              onClick={() => {
-                triggerHaptic('medium');
-                setIsMenuPopupOpen(true);
-              }}
-              className="px-3.5 py-1.5 rounded-full bg-blue-600/30 text-blue-300 hover:bg-blue-600/40 border border-blue-400/40 font-bold transition flex items-center gap-1.5 shadow-sm active:scale-95"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-sky-300" />
-              <span>Menu</span>
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Kalkulator Investasi & Target Dana Pensiun Pro Modal */}
+      <RetirementInvestmentCalculator
+        isOpen={isCalculatorOpen}
+        onClose={() => setIsCalculatorOpen(false)}
+        currentInvestment={totalInvestment}
+        currentNetWorth={totalAset}
+        settings={glassSettings}
+      />
     </div>
   );
 }

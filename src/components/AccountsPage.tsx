@@ -4,6 +4,7 @@ import { GlassButton } from './GlassButton';
 import { GlassSettings, AccountBalance, Transaction } from '../types';
 import { AVAILABLE_ACCOUNTS } from '../data/initialData';
 import { formatRupiah } from '../lib/sheetsApi';
+import { triggerHaptic } from '../lib/haptics';
 import {
   Landmark,
   CreditCard,
@@ -14,7 +15,11 @@ import {
   CheckCircle2,
   TrendingDown,
   TrendingUp,
-  Plus
+  Plus,
+  Pencil,
+  Trash2,
+  X,
+  Wallet
 } from 'lucide-react';
 
 interface AccountsPageProps {
@@ -22,13 +27,23 @@ interface AccountsPageProps {
   settings: GlassSettings;
   onTransfer: (fromAccount: string, toAccount: string, amount: number, note: string) => Promise<void>;
   transactions: Transaction[];
+  totalNetWorth?: number;
+  totalInvestment?: number;
+  onAddAccount?: (account: AccountBalance) => void;
+  onEditAccount?: (oldName: string, updated: AccountBalance) => void;
+  onDeleteAccount?: (name: string) => void;
 }
 
 export const AccountsPage: React.FC<AccountsPageProps> = ({
   accounts,
   settings,
   onTransfer,
-  transactions
+  transactions,
+  totalNetWorth,
+  totalInvestment,
+  onAddAccount,
+  onEditAccount,
+  onDeleteAccount
 }) => {
   const [fromAcc, setFromAcc] = useState('Bank BCA');
   const [toAcc, setToAcc] = useState('Jago-Transport');
@@ -37,11 +52,23 @@ export const AccountsPage: React.FC<AccountsPageProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [transferSuccess, setTransferSuccess] = useState<string | null>(null);
 
-  const totalLiquidCash = accounts
-    .filter((a) => a.nama !== 'Investasi')
-    .reduce((sum, a) => sum + a.totalSaldo, 0);
+  // Modals
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [editingAccount, setEditingAccount] = useState<AccountBalance | null>(null);
 
-  const totalAllAssets = accounts.reduce((sum, a) => sum + a.totalSaldo, 0);
+  // Form states
+  const [formName, setFormName] = useState('');
+  const [formSaldoAwal, setFormSaldoAwal] = useState('');
+  const [formTotalSaldo, setFormTotalSaldo] = useState('');
+
+  // Total All Assets synchronized exactly with Home Net Worth (totalAset)
+  const totalAllAssets = typeof totalNetWorth === 'number' && totalNetWorth > 0
+    ? totalNetWorth
+    : accounts.reduce((sum, a) => sum + a.totalSaldo, 0);
+
+  const totalLiquidCash = accounts
+    .filter((a) => !a.nama.toLowerCase().includes('investasi'))
+    .reduce((sum, a) => sum + a.totalSaldo, 0);
 
   const handleExecuteTransfer = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,197 +97,427 @@ export const AccountsPage: React.FC<AccountsPageProps> = ({
   };
 
   const getAccountIcon = (nama: string) => {
-    if (nama.toLowerCase().includes('cash')) return <Banknote className="w-5 h-5 text-emerald-400" />;
-    if (nama.toLowerCase().includes('savings') || nama.toLowerCase().includes('darurat'))
+    const n = nama.toLowerCase();
+    if (n.includes('cash') || n.includes('tunai')) return <Banknote className="w-5 h-5 text-emerald-400" />;
+    if (n.includes('savings') || n.includes('darurat'))
       return <ShieldCheck className="w-5 h-5 text-amber-400" />;
-    if (nama.toLowerCase().includes('jago') || nama.toLowerCase().includes('blu') || nama.toLowerCase().includes('allo'))
+    if (n.includes('jago') || n.includes('blu') || n.includes('allo') || n.includes('gopay') || n.includes('ovo') || n.includes('wallet'))
       return <CreditCard className="w-5 h-5 text-purple-400" />;
     return <Landmark className="w-5 h-5 text-blue-400" />;
+  };
+
+  const handleOpenAdd = () => {
+    triggerHaptic('light');
+    setFormName('');
+    setFormSaldoAwal('0');
+    setFormTotalSaldo('0');
+    setIsAddModalOpen(true);
+  };
+
+  const handleOpenEdit = (acc: AccountBalance) => {
+    triggerHaptic('light');
+    setEditingAccount(acc);
+    setFormName(acc.nama);
+    setFormSaldoAwal(acc.saldoAwal.toString());
+    setFormTotalSaldo(acc.totalSaldo.toString());
+  };
+
+  const handleSaveAdd = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanName = formName.trim();
+    const cleanSaldoAwal = parseFloat(formSaldoAwal.replace(/[^0-9.-]/g, '')) || 0;
+    const cleanTotal = parseFloat(formTotalSaldo.replace(/[^0-9.-]/g, '')) || cleanSaldoAwal;
+    if (!cleanName) {
+      alert('Masukkan nama rekening atau wallet.');
+      return;
+    }
+
+    const newAcc: AccountBalance = {
+      nama: cleanName,
+      saldoAwal: cleanSaldoAwal,
+      totalSaldo: cleanTotal
+    };
+
+    onAddAccount?.(newAcc);
+    triggerHaptic('success');
+    setIsAddModalOpen(false);
+  };
+
+  const handleSaveEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingAccount) return;
+    const cleanName = formName.trim();
+    const cleanSaldoAwal = parseFloat(formSaldoAwal.replace(/[^0-9.-]/g, '')) || 0;
+    const cleanTotal = parseFloat(formTotalSaldo.replace(/[^0-9.-]/g, '')) || cleanSaldoAwal;
+    if (!cleanName) {
+      alert('Masukkan nama rekening atau wallet.');
+      return;
+    }
+
+    const updated: AccountBalance = {
+      ...editingAccount,
+      nama: cleanName,
+      saldoAwal: cleanSaldoAwal,
+      totalSaldo: cleanTotal
+    };
+
+    onEditAccount?.(editingAccount.nama, updated);
+    triggerHaptic('success');
+    setEditingAccount(null);
+  };
+
+  const handleDelete = (name: string) => {
+    if (confirm(`Yakin ingin menghapus rekening/wallet "${name}"?`)) {
+      triggerHaptic('warning');
+      onDeleteAccount?.(name);
+      setEditingAccount(null);
+    }
   };
 
   return (
     <div className="space-y-6">
       {/* Top Banner KPI */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <GlassContainer settings={settings} className="p-5">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 block mb-1">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+        <GlassContainer settings={settings} className="p-4 sm:p-5">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
             Total Kas Likuid Siap Pakai
           </span>
-          <h3 className="text-2xl sm:text-3xl font-black text-white font-mono">{formatRupiah(totalLiquidCash)}</h3>
-          <p className="text-xs text-emerald-400 mt-1">Rekening Bank, Kantong Budget, & E-Wallet</p>
+          <h3 className="text-xl sm:text-2xl font-black text-white font-mono">{formatRupiah(totalLiquidCash)}</h3>
+          <p className="text-[11px] text-emerald-400 mt-1">Rekening Bank, Kantong Budget, & E-Wallet</p>
         </GlassContainer>
 
-        <GlassContainer settings={settings} className="p-5">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 block mb-1">
+        <GlassContainer settings={settings} className="p-4 sm:p-5">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
             Total Kekayaan Seluruh Rekening
           </span>
-          <h3 className="text-2xl sm:text-3xl font-black text-sky-300 font-mono">{formatRupiah(totalAllAssets)}</h3>
-          <p className="text-xs text-slate-400 mt-1">Termasuk Saldo Portofolio Investasi</p>
+          <h3 className="text-xl sm:text-2xl font-black text-sky-300 font-mono">{formatRupiah(totalAllAssets)}</h3>
+          <p className="text-[11px] text-slate-400 mt-1">Termasuk Saldo Portofolio Investasi</p>
         </GlassContainer>
 
-        <GlassContainer settings={settings} className="p-5">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 block mb-1">
-            Jumlah Kantong & Rekening Terdaftar
+        <GlassContainer settings={settings} className="p-4 sm:p-5">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+            Jumlah Rekening & Wallet
           </span>
-          <h3 className="text-2xl sm:text-3xl font-black text-purple-300 font-mono">{accounts.length} Akun</h3>
-          <p className="text-xs text-slate-400 mt-1">Tersinkronisasi dengan Google Sheet</p>
+          <h3 className="text-xl sm:text-2xl font-black text-purple-300 font-mono">{accounts.length} Akun</h3>
+          <p className="text-[11px] text-slate-400 mt-1">Tersinkronisasi dengan Google Sheet</p>
         </GlassContainer>
       </div>
 
       {/* Grid of Accounts & Balances */}
       <div>
-        <h3 className="text-lg font-bold text-white tracking-tight mb-3 flex items-center gap-2">
-          Daftar Saldo Per Rekening & Kantong Finansial
-        </h3>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+          <h3 className="text-base sm:text-lg font-bold text-white tracking-tight flex items-center gap-2">
+            Daftar Saldo Per Rekening & Wallet
+          </h3>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <button
+            onClick={handleOpenAdd}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/15 text-white font-semibold text-xs self-start sm:self-auto transition-all active:scale-95"
+          >
+            <Plus className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Tambah Rekening / Wallet</span>
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
           {accounts.map((acc) => {
             const isInvestasi = acc.nama.toLowerCase().includes('investasi');
-            const percentOfLiquid = totalLiquidCash > 0 ? ((acc.totalSaldo / totalLiquidCash) * 100).toFixed(1) : '0';
+            const percentOfLiquid =
+              totalLiquidCash > 0 ? ((acc.totalSaldo / totalLiquidCash) * 100).toFixed(1) : '0';
 
             return (
-              <GlassContainer key={acc.nama} settings={settings} className="p-5 flex flex-col justify-between">
+              <GlassContainer
+                key={acc.nama}
+                settings={settings}
+                className="p-4 flex flex-col justify-between relative group hover:border-white/25 transition-all"
+              >
                 <div>
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="w-10 h-10 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
-                      {getAccountIcon(acc.nama)}
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="p-2 rounded-xl bg-white/5 border border-white/10 shrink-0">
+                        {getAccountIcon(acc.nama)}
+                      </div>
+                      <div className="min-w-0">
+                        <h4 className="font-bold text-white text-xs sm:text-sm truncate">{acc.nama}</h4>
+                        <span className="text-[10px] text-slate-400 block">
+                          {isInvestasi ? 'Aset Investasi' : 'Rekening Operasional'}
+                        </span>
+                      </div>
                     </div>
-                    {acc.spendBulanIniPercent !== undefined && acc.spendBulanIniPercent > 0 && (
-                      <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30">
-                        {acc.spendBulanIniPercent}% Spend
-                      </span>
-                    )}
+
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => handleOpenEdit(acc)}
+                        className="p-1 rounded-lg bg-white/5 hover:bg-white/15 text-slate-400 hover:text-white transition"
+                        title="Edit Rekening / Wallet"
+                      >
+                        <Pencil className="w-3 h-3" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(acc.nama)}
+                        className="p-1 rounded-lg bg-white/5 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 transition"
+                        title="Hapus Rekening / Wallet"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
                   </div>
 
-                  <h4 className="text-base font-bold text-white tracking-tight">{acc.nama}</h4>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    {isInvestasi ? 'Aset Investasi Multi-Platform' : 'Kantong Transaksional / Tabungan'}
-                  </p>
-
-                  <div className="mt-4 pt-3 border-t border-white/10">
-                    <div className="flex items-center justify-between mb-0.5">
-                      <span className="text-xs text-slate-400">Saldo Tersedia:</span>
-                      {acc.totalSaldo < 0 && (
-                        <span className="text-[10px] font-bold text-rose-400 bg-rose-500/20 px-2 py-0.5 rounded-full border border-rose-500/30">
-                          Minus / Defisit
-                        </span>
-                      )}
-                    </div>
-                    <span className={`text-xl font-bold font-mono block ${acc.totalSaldo < 0 ? 'text-rose-400' : 'text-white'}`}>
+                  <div className="my-2">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">
+                      Saldo Berjalan
+                    </span>
+                    <span className="text-lg sm:text-xl font-bold font-mono text-white block">
                       {formatRupiah(acc.totalSaldo)}
                     </span>
                   </div>
                 </div>
 
-                {!isInvestasi && (
-                  <div className="mt-4 pt-2.5 border-t border-white/5 flex items-center justify-between text-[11px] text-slate-400">
-                    <span>Porsi Kas Likuid:</span>
-                    <span className="font-semibold text-slate-300">{percentOfLiquid}%</span>
-                  </div>
-                )}
+                <div className="pt-2 border-t border-white/5 flex items-center justify-between text-[10px] text-slate-400">
+                  <span>Saldo Awal: {formatRupiah(acc.saldoAwal)}</span>
+                  {!isInvestasi && <span className="text-sky-300 font-medium">{percentOfLiquid}% Kas</span>}
+                </div>
               </GlassContainer>
             );
           })}
         </div>
       </div>
 
-      {/* Transfer Internal Form */}
-      <GlassContainer settings={settings} className="p-6 sm:p-8">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-white/10 mb-5">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center text-indigo-300">
-              <ArrowRightLeft className="w-4 h-4" />
-            </div>
-            <div>
-              <h3 className="text-base font-bold text-white tracking-tight">
-                Transfer & Alokasi Antar Rekening
-              </h3>
-              <p className="text-xs text-slate-400">
-                Pindahkan saldo antar kantong (misal: BCA ke Jago Transport atau Pluang)
-              </p>
-            </div>
-          </div>
+      {/* Internal Transfer Card */}
+      <GlassContainer settings={settings} className="p-5">
+        <div className="flex items-center gap-2 mb-3 pb-3 border-b border-white/10">
+          <ArrowRightLeft className="w-4 h-4 text-sky-400" />
+          <h4 className="text-sm font-bold text-white tracking-tight">
+            Transfer Internal Antar Rekening & Kantong
+          </h4>
         </div>
 
         {transferSuccess && (
-          <div className="mb-5 p-3 rounded-xl bg-emerald-500/20 border border-emerald-400/30 text-xs text-emerald-200 flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+          <div className="mb-4 p-3 rounded-xl bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 text-xs flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 shrink-0" />
             <span>{transferSuccess}</span>
           </div>
         )}
 
-        <form onSubmit={handleExecuteTransfer} className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <form onSubmit={handleExecuteTransfer} className="space-y-3 text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="text-xs text-slate-300 font-medium block mb-1">Dari Rekening Sumber</label>
+              <label className="text-slate-300 block mb-1 font-medium">Dari Rekening Sumber:</label>
               <select
                 value={fromAcc}
                 onChange={(e) => setFromAcc(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl text-xs liquid-glass-input"
+                className="w-full p-2.5 rounded-xl bg-white/5 border border-white/15 text-white focus:border-sky-400 focus:outline-none"
               >
-                {AVAILABLE_ACCOUNTS.map((a) => (
-                  <option key={a} value={a} className="bg-slate-900">
-                    {a}
+                {accounts.map((a) => (
+                  <option key={a.nama} value={a.nama} className="bg-slate-900 text-white">
+                    {a.nama} ({formatRupiah(a.totalSaldo)})
                   </option>
                 ))}
               </select>
             </div>
 
             <div>
-              <label className="text-xs text-slate-300 font-medium block mb-1">Ke Rekening Tujuan</label>
+              <label className="text-slate-300 block mb-1 font-medium">Ke Rekening Tujuan:</label>
               <select
                 value={toAcc}
                 onChange={(e) => setToAcc(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl text-xs liquid-glass-input"
+                className="w-full p-2.5 rounded-xl bg-white/5 border border-white/15 text-white focus:border-sky-400 focus:outline-none"
               >
-                {AVAILABLE_ACCOUNTS.map((a) => (
-                  <option key={a} value={a} className="bg-slate-900">
-                    {a}
+                {accounts.map((a) => (
+                  <option key={a.nama} value={a.nama} className="bg-slate-900 text-white">
+                    {a.nama}
                   </option>
                 ))}
               </select>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="text-xs text-slate-300 font-medium block mb-1">Nominal Transfer (Rp)</label>
+              <label className="text-slate-300 block mb-1 font-medium">Nominal Transfer (Rp):</label>
               <input
                 type="number"
-                required
-                placeholder="Contoh: 200000"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl text-xs liquid-glass-input font-mono font-semibold"
+                placeholder="Contoh: 150000"
+                className="w-full p-2.5 rounded-xl bg-white/5 border border-white/15 text-white focus:border-sky-400 focus:outline-none"
+                required
               />
             </div>
 
             <div>
-              <label className="text-xs text-slate-300 font-medium block mb-1">Catatan Mutasi</label>
+              <label className="text-slate-300 block mb-1 font-medium">Catatan (Opsional):</label>
               <input
                 type="text"
-                placeholder="Contoh: Top up bensin bulanan"
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl text-xs liquid-glass-input"
+                placeholder="Misal: Top up kantong transport"
+                className="w-full p-2.5 rounded-xl bg-white/5 border border-white/15 text-white focus:border-sky-400 focus:outline-none"
               />
             </div>
           </div>
 
-          <div className="pt-3 border-t border-white/10 flex justify-end">
-            <GlassButton
+          <div className="flex justify-end pt-2">
+            <button
               type="submit"
-              variant="primary"
-              size="md"
               disabled={isSubmitting}
-              settings={settings}
-              icon={<ArrowRightLeft className="w-4 h-4" />}
+              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs shadow-lg shadow-blue-500/25 transition active:scale-95 disabled:opacity-50"
             >
-              {isSubmitting ? 'Memproses Transfer...' : 'Eksekusi Transfer Rekening'}
-            </GlassButton>
+              {isSubmitting ? 'Memproses Transfer...' : 'Kirim Transfer Internal'}
+            </button>
           </div>
         </form>
       </GlassContainer>
+
+      {/* Add Account Modal */}
+      {isAddModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in">
+          <div className="w-full max-w-md rounded-3xl bg-[#0e1224] border border-white/20 p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-white/10">
+              <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                <Plus className="w-4 h-4 text-emerald-400" />
+                Tambah Rekening / Wallet Baru
+              </h4>
+              <button
+                onClick={() => setIsAddModalOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveAdd} className="space-y-3.5 text-xs">
+              <div>
+                <label className="text-slate-300 block mb-1 font-medium">Nama Rekening / E-Wallet:</label>
+                <input
+                  type="text"
+                  value={formName}
+                  onChange={(e) => setFormName(e.target.value)}
+                  placeholder="Contoh: Seabank / GoPay / ShopeePay / Mandiri"
+                  className="w-full p-2.5 rounded-xl bg-white/5 border border-white/15 text-white focus:border-sky-400 focus:outline-none"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="text-slate-300 block mb-1 font-medium">Saldo Awal (Rp):</label>
+                <input
+                  type="number"
+                  value={formSaldoAwal}
+                  onChange={(e) => setFormSaldoAwal(e.target.value)}
+                  placeholder="0"
+                  className="w-full p-2.5 rounded-xl bg-white/5 border border-white/15 text-white focus:border-sky-400 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-slate-300 block mb-1 font-medium">Total Saldo Saat Ini (Rp):</label>
+                <input
+                  type="number"
+                  value={formTotalSaldo}
+                  onChange={(e) => setFormTotalSaldo(e.target.value)}
+                  placeholder="0"
+                  className="w-full p-2.5 rounded-xl bg-white/5 border border-white/15 text-white focus:border-sky-400 focus:outline-none"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setIsAddModalOpen(false)}
+                  className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-xs transition"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold text-xs shadow-md transition active:scale-95"
+                >
+                  Simpan Rekening
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Account Modal */}
+      {editingAccount && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in">
+          <div className="w-full max-w-md rounded-3xl bg-[#0e1224] border border-white/20 p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-white/10">
+              <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                <Pencil className="w-4 h-4 text-sky-400" />
+                Edit Rekening / Wallet ({editingAccount.nama})
+              </h4>
+              <button
+                onClick={() => setEditingAccount(null)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEdit} className="space-y-3.5 text-xs">
+              <div>
+                <label className="text-slate-300 block mb-1 font-medium">Nama Rekening / Wallet:</label>
+                <input
+                  type="text"
+                  value={formName}
+                  onChange={(e) => setFormName(e.target.value)}
+                  className="w-full p-2.5 rounded-xl bg-white/5 border border-white/15 text-white focus:border-sky-400 focus:outline-none"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="text-slate-300 block mb-1 font-medium">Saldo Awal (Rp):</label>
+                <input
+                  type="number"
+                  value={formSaldoAwal}
+                  onChange={(e) => setFormSaldoAwal(e.target.value)}
+                  className="w-full p-2.5 rounded-xl bg-white/5 border border-white/15 text-white focus:border-sky-400 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-slate-300 block mb-1 font-medium">Total Saldo Saat Ini (Rp):</label>
+                <input
+                  type="number"
+                  value={formTotalSaldo}
+                  onChange={(e) => setFormTotalSaldo(e.target.value)}
+                  className="w-full p-2.5 rounded-xl bg-white/5 border border-white/15 text-white focus:border-sky-400 focus:outline-none"
+                />
+              </div>
+
+              <div className="flex justify-between items-center pt-3 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={() => handleDelete(editingAccount.nama)}
+                  className="px-3 py-2 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 text-xs transition"
+                >
+                  Hapus Rekening
+                </button>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditingAccount(null)}
+                    className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-xs transition"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md transition active:scale-95"
+                  >
+                    Perbarui Rekening
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

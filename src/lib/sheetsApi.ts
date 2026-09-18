@@ -341,19 +341,61 @@ export function formatSheetRange(sheetName: string, cellRange: string): string {
 
 /**
  * Appends a transaction row to Google Sheets.
+ * Uses smart row detection to insert into the first empty row of the table (A1:B100),
+ * avoiding blank gap jumps or formulas in adjacent columns, then falls back to append API.
  */
 export async function appendRowToSheet(
   spreadsheetId: string,
   sheetName: string,
   tx: Omit<Transaction, 'id'>,
   accessToken: string
-) {
+): Promise<{ rowIndex?: number; rawResponse: any }> {
   // CRITICAL: Send raw number for numeric amount column, NEVER "Rp 126.090"
   // Google Sheets cell formatting handles currency display automatically
   const numericJumlah = Math.round(Number(tx.jumlah) || 0);
   const rowValues = [[tx.bulan, tx.kategori, tx.akun, tx.tipe, numericJumlah, tx.catatan || '']];
-  const range = encodeURIComponent(formatSheetRange(sheetName, 'A:F'));
 
+  // Try smart row detection to write directly to the next empty row in columns A..F
+  try {
+    const existingRows = await fetchSheetValues(
+      spreadsheetId,
+      formatSheetRange(sheetName, 'A1:B100'),
+      accessToken
+    );
+
+    if (existingRows && existingRows.length > 0) {
+      let targetRow = -1;
+      for (let i = 1; i < existingRows.length; i++) {
+        const col0 = (existingRows[i]?.[0] || '').toString().trim();
+        const col1 = (existingRows[i]?.[1] || '').toString().trim();
+        if (!col0 && !col1) {
+          targetRow = i + 1; // 1-indexed row number in Google Sheets
+          break;
+        }
+      }
+
+      // If all scanned rows have data, next empty row is existingRows.length + 1
+      if (targetRow === -1) {
+        targetRow = existingRows.length + 1;
+      }
+
+      if (targetRow >= 2) {
+        const updateRes = await updateRowInSheet(
+          spreadsheetId,
+          sheetName,
+          targetRow,
+          tx as any,
+          accessToken
+        );
+        return { rowIndex: targetRow, rawResponse: updateRes };
+      }
+    }
+  } catch (e) {
+    console.warn('Smart row detection fallback to append endpoint:', e);
+  }
+
+  // Fallback: standard Google Sheets append endpoint
+  const range = encodeURIComponent(formatSheetRange(sheetName, 'A:F'));
   const res = await fetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
     {
@@ -370,7 +412,18 @@ export async function appendRowToSheet(
     const errData = await res.json().catch(() => ({}));
     throw new Error(errData?.error?.message || 'Gagal menambahkan baris ke Google Sheets');
   }
-  return await res.json();
+
+  const resJson = await res.json();
+  let rowIndex: number | undefined;
+  const updatedRange = resJson?.updates?.updatedRange;
+  if (updatedRange) {
+    const match = updatedRange.match(/[A-Z]+(\d+):[A-Z]+(\d+)/);
+    if (match && match[1]) {
+      rowIndex = parseInt(match[1], 10);
+    }
+  }
+
+  return { rowIndex, rawResponse: resJson };
 }
 
 /**

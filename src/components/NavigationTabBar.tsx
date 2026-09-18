@@ -1,19 +1,14 @@
-import React, { useRef } from 'react';
+import React from 'react';
 import { GlassSettings } from '../types';
 import { triggerHaptic } from '../lib/haptics';
+import { motion } from 'motion/react';
 import {
   LayoutDashboard,
-  PlusCircle,
   PieChart,
   TrendingUp,
   Landmark,
-  FileSpreadsheet,
   Menu,
-  FolderSync,
-  Sun,
-  Moon,
-  Palette,
-  MoonStar
+  Plus
 } from 'lucide-react';
 
 export type ActivePage = 'summary' | 'cashflow' | 'budgeting' | 'portfolio' | 'accounts' | 'journal';
@@ -32,196 +27,168 @@ export const NavigationTabBar: React.FC<NavigationTabBarProps> = ({
   activePage,
   onSelectPage,
   settings,
-  txCount = 0,
   onOpenMenu,
   onOpenProjectManager,
   onToggleTheme
 }) => {
-  const containerRef = useRef<HTMLDivElement>(null);
   const currentTheme = settings.themeMode || 'dark';
 
-  let navBg = 'rgba(12, 16, 32, 0.72)';
-  let navBorder = 'rgba(255, 255, 255, 0.12)';
-  let navShadow = '0 15px 35px -5px rgba(0, 0, 0, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.2), inset 0 -1px 1px rgba(0,0,0,0.3)';
+  let pillBg = 'rgba(12, 16, 32, 0.86)';
+  let pillBorder = 'rgba(255, 255, 255, 0.14)';
+  let pillShadow = '0 12px 36px -4px rgba(0, 0, 0, 0.65), 0 2px 8px rgba(0, 0, 0, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.2)';
+  let activePillBg = 'bg-white/18 text-white border border-white/25 shadow-md shadow-black/20';
+  let activeTextClass = 'text-white';
+  let inactiveTextClass = 'text-slate-400 hover:text-slate-200';
 
   if (currentTheme === 'light') {
-    navBg = 'rgba(255, 255, 255, 0.9)';
-    navBorder = 'rgba(203, 213, 225, 0.9)';
-    navShadow = '0 10px 25px -5px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9)';
+    pillBg = 'rgba(255, 255, 255, 0.92)';
+    pillBorder = 'rgba(226, 232, 240, 0.9)';
+    pillShadow = '0 12px 30px -4px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.04), inset 0 1px 1px rgba(255, 255, 255, 0.95)';
+    activePillBg = 'bg-slate-900 text-white shadow-md';
+    activeTextClass = 'text-white';
+    inactiveTextClass = 'text-slate-500 hover:text-slate-800';
   } else if (currentTheme === 'beige') {
-    navBg = 'rgba(255, 253, 248, 0.92)';
-    navBorder = 'rgba(223, 213, 198, 0.95)';
-    navShadow = '0 10px 25px -5px rgba(60, 45, 30, 0.07), inset 0 1px 1px rgba(255, 255, 255, 0.95)';
+    pillBg = 'rgba(255, 253, 248, 0.94)';
+    pillBorder = 'rgba(223, 213, 198, 0.95)';
+    pillShadow = '0 12px 30px -4px rgba(60, 45, 30, 0.1), inset 0 1px 1px rgba(255, 255, 255, 0.95)';
+    activePillBg = 'bg-[#2e261f] text-[#fdfbf7] shadow-md';
+    activeTextClass = 'text-[#fdfbf7]';
+    inactiveTextClass = 'text-[#877868] hover:text-[#2e261f]';
   } else if (currentTheme === 'midnight') {
-    navBg = 'rgba(5, 5, 8, 0.92)';
-    navBorder = 'rgba(255, 255, 255, 0.18)';
-    navShadow = '0 20px 40px -10px rgba(0, 0, 0, 0.9), inset 0 1px 1px rgba(255, 255, 255, 0.2)';
+    pillBg = 'rgba(4, 6, 12, 0.95)';
+    pillBorder = 'rgba(255, 255, 255, 0.16)';
+    pillShadow = '0 12px 36px -4px rgba(0, 0, 0, 0.9), inset 0 1px 1px rgba(255, 255, 255, 0.25)';
+    activePillBg = 'bg-white/20 text-white border border-white/30 shadow-md';
+    activeTextClass = 'text-white';
+    inactiveTextClass = 'text-slate-400 hover:text-slate-200';
   }
 
-  const getThemeIcon = () => {
-    switch (currentTheme) {
-      case 'light':
-        return <Sun className="w-3.5 h-3.5 text-amber-500" />;
-      case 'beige':
-        return <Palette className="w-3.5 h-3.5 text-amber-700" />;
-      case 'midnight':
-        return <MoonStar className="w-3.5 h-3.5 text-purple-400" />;
-      default:
-        return <Moon className="w-3.5 h-3.5 text-sky-400" />;
-    }
-  };
-
-  const getThemeLabel = () => {
-    switch (currentTheme) {
-      case 'light':
-        return 'Light';
-      case 'beige':
-        return 'Beige';
-      case 'midnight':
-        return 'OLED';
-      default:
-        return 'Dark';
-    }
-  };
-
-  const tabs = [
+  // 5 Main Navigation Items inside the Glass Pill (perfect odd symmetry & center balance)
+  const navTabs: { id: ActivePage | 'menu'; label: string; icon: React.ReactNode; isAction?: boolean }[] = [
     {
-      id: 'summary' as ActivePage,
-      label: 'Summary',
-      icon: <LayoutDashboard className="w-4 h-4" />,
-      badge: null
+      id: 'summary',
+      label: 'Home',
+      icon: <LayoutDashboard className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
     },
     {
-      id: 'cashflow' as ActivePage,
-      label: 'Input Cashflow',
-      icon: <PlusCircle className="w-4 h-4 text-emerald-400" />,
-      badge: 'Sync'
+      id: 'budgeting',
+      label: 'Budget',
+      icon: <PieChart className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
     },
     {
-      id: 'budgeting' as ActivePage,
-      label: 'Budgeting',
-      icon: <PieChart className="w-4 h-4 text-amber-400" />,
-      badge: null
+      id: 'portfolio',
+      label: 'Invest',
+      icon: <TrendingUp className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
     },
     {
-      id: 'portfolio' as ActivePage,
-      label: 'Portofolio',
-      icon: <TrendingUp className="w-4 h-4 text-sky-400" />,
-      badge: null
+      id: 'accounts',
+      label: 'Dompet',
+      icon: <Landmark className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
     },
     {
-      id: 'accounts' as ActivePage,
-      label: 'Rekening',
-      icon: <Landmark className="w-4 h-4 text-purple-400" />,
-      badge: null
-    },
-    {
-      id: 'journal' as ActivePage,
-      label: 'Jurnal',
-      icon: <FileSpreadsheet className="w-4 h-4 text-blue-400" />,
-      badge: txCount > 0 ? `${txCount}` : null
+      id: 'menu',
+      label: 'Menu',
+      icon: <Menu className="w-4 h-4 sm:w-4.5 sm:h-4.5" />,
+      isAction: true
     }
   ];
 
+  const isCashflowActive = activePage === 'cashflow';
+
   return (
-    <nav
-      style={{
-        background: navBg,
-        borderColor: navBorder,
-        backdropFilter: 'blur(24px) saturate(180%)',
-        WebkitBackdropFilter: 'blur(24px) saturate(180%)',
-        boxShadow: navShadow
-      }}
-      className="sticky top-3 z-30 w-full max-w-full min-w-0 rounded-2xl sm:rounded-full border p-1.5 shadow-2xl transition-all"
+    <aside
+      aria-label="Split Glass Bottom Navigation Bar"
+      className="fixed bottom-3 sm:bottom-5 inset-x-0 z-40 flex items-center justify-center gap-2 sm:gap-3 px-3 pointer-events-none transition-all duration-300 pb-[max(0.25rem,env(safe-area-inset-bottom))]"
     >
-      <div className="flex items-center justify-between gap-1 overflow-hidden w-full min-w-0">
-        {/* Direct swipeable tab list - no scrollbar */}
-        <div
-          ref={containerRef}
-          className="flex items-center gap-1 overflow-x-auto no-scrollbar flex-1 py-0.5 pr-2 min-w-0"
-          style={{
-            scrollSnapType: 'x mandatory',
-            WebkitOverflowScrolling: 'touch'
-          }}
-        >
-          {tabs.map((tab) => {
-            const isActive = activePage === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => {
-                  triggerHaptic('selection');
-                  onSelectPage(tab.id);
-                }}
-                className={`relative flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-200 shrink-0 ${
-                  isActive
-                    ? 'bg-gradient-to-r from-blue-600/80 to-indigo-600/80 text-white border border-white/30 shadow-md shadow-blue-600/20'
-                    : 'text-slate-300 hover:text-white hover:bg-white/[0.06] border border-transparent'
-                }`}
-              >
-                <span className="shrink-0">{tab.icon}</span>
-                <span className="tracking-tight">{tab.label}</span>
-                {tab.badge && (
-                  <span
-                    className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full ${
-                      isActive
-                        ? 'bg-white/25 text-white'
-                        : 'bg-white/10 text-slate-400'
-                    }`}
+      {/* 1. MAIN GLASS CAPSULE DOCK (Contains the 5 Navigation tabs with sliding liquid indicator) */}
+      <div
+        style={{
+          background: pillBg,
+          borderColor: pillBorder,
+          backdropFilter: 'blur(28px) saturate(190%)',
+          WebkitBackdropFilter: 'blur(28px) saturate(190%)',
+          boxShadow: pillShadow
+        }}
+        className="pointer-events-auto flex items-center p-1.5 rounded-full border transition-all duration-300"
+      >
+        {navTabs.map((tab) => {
+          const isActive = tab.id === activePage;
+
+          return (
+            <button
+              key={tab.id}
+              onClick={() => {
+                triggerHaptic('light');
+                if (tab.isAction) {
+                  onOpenMenu?.();
+                } else {
+                  onSelectPage(tab.id as ActivePage);
+                }
+              }}
+              className={`relative flex items-center justify-center rounded-full py-2 px-3 sm:px-3.5 transition-all duration-200 focus:outline-none touch-manipulation group ${
+                isActive ? activeTextClass : inactiveTextClass
+              }`}
+            >
+              {/* Liquid Sliding Indicator Pill */}
+              {isActive && (
+                <motion.div
+                  layoutId="liquidActiveNavIndicator"
+                  className={`absolute inset-0 rounded-full ${activePillBg}`}
+                  transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+                />
+              )}
+
+              {/* Tab Content (Icon + dynamic label when active matching Image 4) */}
+              <span className="relative z-10 flex items-center gap-1.5">
+                <span className="shrink-0 transition-transform duration-200 group-hover:scale-105">
+                  {tab.icon}
+                </span>
+
+                {isActive && (
+                  <motion.span
+                    initial={{ opacity: 0, x: -4, scale: 0.95 }}
+                    animate={{ opacity: 1, x: 0, scale: 1 }}
+                    exit={{ opacity: 0, x: -4 }}
+                    transition={{ duration: 0.18 }}
+                    className="text-xs font-bold tracking-tight whitespace-nowrap"
                   >
-                    {tab.badge}
-                  </span>
+                    {tab.label}
+                  </motion.span>
                 )}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Quick Theme Switcher Button */}
-        {onToggleTheme && (
-          <button
-            onClick={() => {
-              triggerHaptic('selection');
-              onToggleTheme();
-            }}
-            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 rounded-full bg-white/10 hover:bg-white/15 border border-white/15 text-white text-xs font-semibold transition shrink-0 active:scale-95"
-            title={`Ganti Tema (Aktif: ${getThemeLabel()})`}
-          >
-            {getThemeIcon()}
-            <span className="hidden lg:inline text-[11px] font-bold">{getThemeLabel()}</span>
-          </button>
-        )}
-
-        {/* Project Sheets Modal Trigger */}
-        {onOpenProjectManager && (
-          <button
-            onClick={() => {
-              triggerHaptic('medium');
-              onOpenProjectManager();
-            }}
-            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 rounded-full bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-400/30 text-indigo-200 text-xs font-semibold transition shrink-0 active:scale-95"
-            title="Ganti / Sinkronkan Project Google Sheet"
-          >
-            <FolderSync className="w-3.5 h-3.5 text-indigo-300 shrink-0" />
-            <span className="hidden md:inline">Project Sheet</span>
-          </button>
-        )}
-
-        {/* Dedicated Popup Glass Menu Trigger */}
-        {onOpenMenu && (
-          <button
-            onClick={() => {
-              triggerHaptic('medium');
-              onOpenMenu();
-            }}
-            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 rounded-full bg-white/10 hover:bg-white/15 border border-white/15 text-white text-xs font-semibold transition shrink-0 active:scale-95"
-            title="Buka Menu & Navigasi Lengkap"
-          >
-            <Menu className="w-3.5 h-3.5 text-sky-400 shrink-0" />
-            <span className="hidden sm:inline">Menu</span>
-          </button>
-        )}
+              </span>
+            </button>
+          );
+        })}
       </div>
-    </nav>
+
+      {/* 2. SPLIT GLASS FLOATING ACTION BUTTON (+) (Asymmetrical Modern Split Navigation from Image 4) */}
+      <button
+        onClick={() => {
+          triggerHaptic('medium');
+          onSelectPage('cashflow');
+        }}
+        aria-label="Input Transaksi Baru"
+        className={`pointer-events-auto relative w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center text-white transition-all duration-200 active:scale-95 focus:outline-none touch-manipulation group ${
+          isCashflowActive
+            ? 'scale-105 ring-2 ring-rose-400/80 ring-offset-2 ring-offset-black/60 shadow-xl shadow-rose-500/50'
+            : 'hover:scale-105 hover:shadow-rose-500/40'
+        }`}
+        style={{
+          background: 'linear-gradient(135deg, #f43f5e 0%, #d946ef 50%, #6366f1 100%)',
+          boxShadow: isCashflowActive
+            ? '0 8px 24px -2px rgba(244, 63, 94, 0.6), inset 0 1px 1px rgba(255, 255, 255, 0.4)'
+            : '0 8px 20px -2px rgba(244, 63, 94, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.35)',
+          border: '1px solid rgba(255, 255, 255, 0.35)'
+        }}
+      >
+        {/* Soft Ambient Glow Halo behind the button */}
+        <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-rose-500 to-fuchsia-500 blur-md opacity-40 group-hover:opacity-70 transition-opacity -z-10" />
+
+        <Plus className={`w-5 h-5 sm:w-6 sm:h-6 transition-transform duration-300 ${
+          isCashflowActive ? 'rotate-90 scale-110' : 'group-hover:rotate-45'
+        }`} />
+      </button>
+    </aside>
   );
 };
+

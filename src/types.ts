@@ -28,6 +28,7 @@ export interface BudgetCategory {
 export interface AccountBalance {
   nama: string;
   totalSaldo: number;
+  saldoAwal?: number;
   spendBulanIniPercent?: number;
   iconType?: string;
   color?: string;

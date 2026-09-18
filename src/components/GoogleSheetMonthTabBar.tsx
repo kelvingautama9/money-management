@@ -99,7 +99,7 @@ export const GoogleSheetMonthTabBar: React.FC<GoogleSheetMonthTabBarProps> = ({
   return (
     <>
       {/* COMPACT SINGLE BUTTON (Tidak Menghalangi Layar Mobile/Tab) */}
-      <div className="flex items-center justify-between gap-2 flex-wrap">
+      <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <button
             onClick={handleOpenModal}
@@ -148,14 +148,6 @@ export const GoogleSheetMonthTabBar: React.FC<GoogleSheetMonthTabBarProps> = ({
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-sky-400' : ''}`} />
           </button>
-        </div>
-
-        {/* Status Mode Badge */}
-        <div className="hidden sm:flex items-center gap-1.5 text-[11px] text-slate-400">
-          <span className={`w-2 h-2 rounded-full ${isGoogleConnected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
-          <span>
-            {isGoogleConnected ? `Tersinkron Tab ${currentSheet}` : 'Mode Lokal'}
-          </span>
         </div>
       </div>
 

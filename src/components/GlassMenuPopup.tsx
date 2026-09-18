@@ -27,7 +27,8 @@ import {
   Sun,
   Moon,
   Palette,
-  MoonStar
+  MoonStar,
+  Calculator
 } from 'lucide-react';
 
 interface GlassMenuPopupProps {
@@ -40,6 +41,7 @@ interface GlassMenuPopupProps {
   onOpenReport: () => void;
   onOpenInspector: () => void;
   onOpenProjectManager?: () => void;
+  onOpenCalculator?: () => void;
   onSelectTheme?: (theme: ThemeMode) => void;
   isGoogleConnected: boolean;
   user?: User | null;
@@ -67,6 +69,7 @@ export const GlassMenuPopup: React.FC<GlassMenuPopupProps> = ({
   onOpenReport,
   onOpenInspector,
   onOpenProjectManager,
+  onOpenCalculator,
   onSelectTheme,
   isGoogleConnected,
   user,
@@ -483,7 +486,7 @@ export const GlassMenuPopup: React.FC<GlassMenuPopupProps> = ({
               Utilitas & Laporan
             </span>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
               {onOpenProjectManager && (
                 <button
                   onClick={() => {
@@ -502,6 +505,24 @@ export const GlassMenuPopup: React.FC<GlassMenuPopupProps> = ({
                 </button>
               )}
 
+              {onOpenCalculator && (
+                <button
+                  onClick={() => {
+                    onClose();
+                    onOpenCalculator();
+                  }}
+                  className="flex items-center gap-3 p-3 rounded-2xl bg-white/[0.04] hover:bg-white/[0.09] border border-white/10 text-left transition active:scale-[0.98]"
+                >
+                  <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
+                    <Calculator className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h5 className="text-xs font-bold text-white">Kalkulator Pensiun</h5>
+                    <p className="text-[10px] text-slate-400">Simulasi target & smart saran</p>
+                  </div>
+                </button>
+              )}
+
               <button
                 onClick={() => {
                   onClose();
@@ -509,7 +530,7 @@ export const GlassMenuPopup: React.FC<GlassMenuPopupProps> = ({
                 }}
                 className="flex items-center gap-3 p-3 rounded-2xl bg-white/[0.04] hover:bg-white/[0.09] border border-white/10 text-left transition active:scale-[0.98]"
               >
-                <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
+                <div className="w-8 h-8 rounded-xl bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-blue-400 shrink-0">
                   <FileText className="w-4 h-4" />
                 </div>
                 <div>
