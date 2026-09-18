@@ -92,13 +92,13 @@ export const ExecutiveSummary: React.FC<ExecutiveSummaryProps> = ({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full max-w-full min-w-0">
       {/* HERO SECTION: Large Balance & Dual Frosted Cards (As in Image 3 & 4) */}
-      <GlassContainer settings={settings} className="p-6 sm:p-8 relative overflow-hidden">
+      <GlassContainer settings={settings} className="p-5 sm:p-8 relative overflow-hidden w-full max-w-full min-w-0">
         {/* Subtle decorative glow */}
         <div className="absolute top-0 right-0 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
 
-        <div className="relative z-10">
+        <div className="relative z-10 w-full min-w-0">
           {/* Top Label & Eye Toggle */}
           <div className="flex items-center justify-between">
             <div className="flex flex-wrap items-center gap-2">
@@ -142,7 +142,7 @@ export const ExecutiveSummary: React.FC<ExecutiveSummaryProps> = ({
           </p>
 
           {/* TRI-CARD ROW: INCOME, OUTCOME, & INVESTMENT PORTFOLIO CARDS */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6 w-full min-w-0">
             {/* 1. Income Card */}
             <div className="relative p-5 rounded-2xl bg-white/[0.04] border border-white/10 overflow-hidden group hover:border-emerald-500/30 transition-all">
               <div className="flex items-start justify-between">
@@ -292,7 +292,7 @@ export const ExecutiveSummary: React.FC<ExecutiveSummaryProps> = ({
       </GlassContainer>
 
       {/* QUICK ACTIONS ROW (Image 4 Clean Interface Match) */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 w-full min-w-0">
         <button
           onClick={() => {
             triggerHaptic('selection');
@@ -390,7 +390,7 @@ export const ExecutiveSummary: React.FC<ExecutiveSummaryProps> = ({
       )}
 
       {/* "MY WALLETS" DIRECT SWIPE CARDS CAROUSEL (Image 4 Match: No Scrollbar, Direct Smooth Swipe) */}
-      <div className="space-y-3">
+      <div className="space-y-3 w-full max-w-full min-w-0 overflow-hidden">
         <div className="flex items-center justify-between px-1">
           <div className="flex items-center gap-2">
             <Building2 className="w-4 h-4 text-sky-400" />
@@ -414,7 +414,7 @@ export const ExecutiveSummary: React.FC<ExecutiveSummaryProps> = ({
         {/* Swipe Carousel with touch-pan-x, direct horizontal swipe */}
         <div
           ref={walletScrollRef}
-          className="flex items-center gap-3 overflow-x-auto no-scrollbar py-1"
+          className="flex items-center gap-3 overflow-x-auto no-scrollbar py-1 w-full max-w-full min-w-0 touch-pan-x"
           style={{
             scrollSnapType: 'x mandatory',
             WebkitOverflowScrolling: 'touch'
@@ -428,7 +428,7 @@ export const ExecutiveSummary: React.FC<ExecutiveSummaryProps> = ({
                 backdropFilter: 'blur(20px)',
                 WebkitBackdropFilter: 'blur(20px)'
               }}
-              className="p-4 rounded-2xl border border-white/15 min-w-[220px] sm:min-w-[240px] shrink-0 scroll-snap-align-start hover:border-white/30 transition-all"
+              className="p-4 rounded-2xl border border-white/15 min-w-[200px] sm:min-w-[240px] shrink-0 scroll-snap-align-start hover:border-white/30 transition-all"
             >
               <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
                 <span className="font-semibold text-white tracking-tight flex items-center gap-1.5">
@@ -466,7 +466,7 @@ export const ExecutiveSummary: React.FC<ExecutiveSummaryProps> = ({
       </div>
 
       {/* TWO COLUMNS: BUDGETING GOALS & RECENT TRANSACTIONS (Images 3 & 4 Match) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full min-w-0">
         {/* Left: Goals & Budget Envelopes Snapshot */}
         <GlassContainer settings={settings} className="p-6">
           <div className="flex items-center justify-between mb-4">

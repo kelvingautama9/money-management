@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { GlassSettings } from '../types';
+import { GlassSettings, ThemeMode } from '../types';
 import { ActivePage } from './NavigationTabBar';
 import { User } from 'firebase/auth';
 import {
@@ -23,7 +23,11 @@ import {
   ExternalLink,
   Eye,
   EyeOff,
-  FolderSync
+  FolderSync,
+  Sun,
+  Moon,
+  Palette,
+  MoonStar
 } from 'lucide-react';
 
 interface GlassMenuPopupProps {
@@ -36,6 +40,7 @@ interface GlassMenuPopupProps {
   onOpenReport: () => void;
   onOpenInspector: () => void;
   onOpenProjectManager?: () => void;
+  onSelectTheme?: (theme: ThemeMode) => void;
   isGoogleConnected: boolean;
   user?: User | null;
   spreadsheetId?: string;
@@ -62,6 +67,7 @@ export const GlassMenuPopup: React.FC<GlassMenuPopupProps> = ({
   onOpenReport,
   onOpenInspector,
   onOpenProjectManager,
+  onSelectTheme,
   isGoogleConnected,
   user,
   spreadsheetId = '',
@@ -529,6 +535,56 @@ export const GlassMenuPopup: React.FC<GlassMenuPopupProps> = ({
               </button>
             </div>
           </div>
+
+          {/* THEME SELECTION PALETTE INSIDE MENU */}
+          {onSelectTheme && (
+            <div className="pt-3 border-t border-white/10 mt-3">
+              <div className="flex items-center justify-between px-1 mb-2">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                  <Palette className="w-3.5 h-3.5 text-blue-400" />
+                  Pilihan Tema Tampilan (Baru)
+                </span>
+                <span className="text-[10px] text-slate-400">
+                  Aktif: <strong className="text-blue-300 capitalize">{settings.themeMode || 'Dark'}</strong>
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {[
+                  { id: 'dark' as ThemeMode, name: 'Dark Glass', icon: <Moon className="w-4 h-4 text-sky-400" />, desc: 'Obsidian Neon' },
+                  { id: 'light' as ThemeMode, name: 'Light Apple', icon: <Sun className="w-4 h-4 text-amber-500" />, desc: 'Clean White' },
+                  { id: 'beige' as ThemeMode, name: 'Warm Beige', icon: <Palette className="w-4 h-4 text-amber-700" />, desc: 'Paper Aesthetic' },
+                  { id: 'midnight' as ThemeMode, name: 'Midnight OLED', icon: <MoonStar className="w-4 h-4 text-purple-400" />, desc: 'Pure Black' },
+                ].map((th) => {
+                  const isActive = (settings.themeMode || 'dark') === th.id;
+                  return (
+                    <button
+                      key={th.id}
+                      onClick={() => onSelectTheme(th.id)}
+                      className={`p-2.5 rounded-2xl border text-left transition-all flex flex-col justify-between ${
+                        isActive
+                          ? 'bg-blue-600/30 border-blue-400/80 ring-1 ring-blue-400 text-white shadow-md'
+                          : 'bg-white/[0.04] hover:bg-white/[0.08] border-white/10 text-slate-300'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="w-6 h-6 rounded-lg bg-white/10 flex items-center justify-center">
+                          {th.icon}
+                        </div>
+                        {isActive && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shadow-[0_0_6px_#38bdf8]" />
+                        )}
+                      </div>
+                      <div>
+                        <span className="text-xs font-bold block leading-tight">{th.name}</span>
+                        <span className="text-[9px] text-slate-400 block mt-0.5">{th.desc}</span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Footer info */}

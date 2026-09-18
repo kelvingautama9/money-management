@@ -47,6 +47,15 @@ export const GlassContainer: React.FC<GlassContainerProps> = ({
       inset 0 1.5px 0.5px rgba(255, 255, 255, 0.95)
     `;
     highlightColor = 'linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.95) 50%, transparent 100%)';
+  } else if (theme === 'midnight') {
+    bgColor = `rgba(0, 0, 0, ${Math.min(0.96, 0.82 + opacityDecimal * 0.15)})`;
+    borderColor = 'rgba(255, 255, 255, 0.18)';
+    boxShadow = `
+      0 25px 50px -10px rgba(0, 0, 0, 0.95),
+      inset 0 1.5px 0.5px rgba(255, 255, 255, 0.35),
+      inset 0 -1px 1px rgba(0, 0, 0, 0.9)
+    `;
+    highlightColor = 'linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.8) 50%, transparent 100%)';
   }
 
   return (

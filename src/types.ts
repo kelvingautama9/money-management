@@ -67,6 +67,8 @@ export interface SheetSummary {
   budgets?: Partial<BudgetCategory>[];
 }
 
+export type ThemeMode = 'dark' | 'light' | 'beige' | 'midnight';
+
 export interface GlassSettings {
   blur: number; // in px (e.g. 10 - 40)
   translucency: number; // in percent (e.g. 20 - 90)
@@ -74,5 +76,5 @@ export interface GlassSettings {
   specularIntensity: number; // in percent (e.g. 0 - 100)
   tilt3d: boolean;
   activePreset: 'ios26' | 'frosted' | 'deepDark' | 'crystal';
-  themeMode?: 'dark' | 'light' | 'beige';
+  themeMode?: ThemeMode;
 }

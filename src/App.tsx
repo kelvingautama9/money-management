@@ -15,7 +15,8 @@ import {
   InvestmentAsset,
   InvestmentHistory,
   GlassSettings,
-  SheetSummary
+  SheetSummary,
+  ThemeMode
 } from './types';
 import {
   initAuth,
@@ -78,7 +79,15 @@ import {
 
 export default function App() {
   // --- Glass UI State ---
-  const [glassSettings, setGlassSettings] = useState<GlassSettings>(DEFAULT_GLASS_SETTINGS);
+  const [glassSettings, setGlassSettings] = useState<GlassSettings>(() => {
+    try {
+      const savedTheme = localStorage.getItem('kelvin_financial_theme_mode') as ThemeMode | null;
+      if (savedTheme && ['dark', 'light', 'beige', 'midnight'].includes(savedTheme)) {
+        return { ...DEFAULT_GLASS_SETTINGS, themeMode: savedTheme };
+      }
+    } catch (e) {}
+    return DEFAULT_GLASS_SETTINGS;
+  });
   const [isGlassModalOpen, setIsGlassModalOpen] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [isMenuPopupOpen, setIsMenuPopupOpen] = useState(false);
@@ -211,14 +220,35 @@ export default function App() {
     }
   }, [user, handleRefreshSpreadsheetTabs]);
 
-  // Update CSS variables whenever glassSettings changes
+  // Update CSS variables & theme classes whenever glassSettings changes
   useEffect(() => {
     const root = document.documentElement;
     root.style.setProperty('--glass-blur', `${glassSettings.blur}px`);
     root.style.setProperty('--glass-opacity', `${glassSettings.translucency / 100}`);
     root.style.setProperty('--glass-dark-tint', `${glassSettings.darkTint / 100}`);
     root.style.setProperty('--glass-specular', `${glassSettings.specularIntensity / 100}`);
+
+    const theme = glassSettings.themeMode || 'dark';
+    root.classList.remove('theme-dark', 'theme-light', 'theme-beige', 'theme-midnight');
+    root.classList.add(`theme-${theme}`);
+    document.body.classList.remove('theme-dark', 'theme-light', 'theme-beige', 'theme-midnight');
+    document.body.classList.add(`theme-${theme}`);
+    try {
+      localStorage.setItem('kelvin_financial_theme_mode', theme);
+    } catch (e) {}
   }, [glassSettings]);
+
+  const handleToggleTheme = () => {
+    const themeOrder: ThemeMode[] = ['dark', 'light', 'beige', 'midnight'];
+    const current = glassSettings.themeMode || 'dark';
+    const nextIdx = (themeOrder.indexOf(current) + 1) % themeOrder.length;
+    const nextTheme = themeOrder[nextIdx];
+    setGlassSettings(prev => ({ ...prev, themeMode: nextTheme }));
+  };
+
+  const handleSelectTheme = (mode: ThemeMode) => {
+    setGlassSettings(prev => ({ ...prev, themeMode: mode }));
+  };
 
   // --- Financial Computations Engine ---
   // 1. Total Income
@@ -941,14 +971,22 @@ export default function App() {
   }, [transactions, sheetName, availableSheets]);
 
   return (
-    <div className="min-h-screen bg-[#060713] text-slate-100 relative selection:bg-blue-500/30 selection:text-white">
+    <div className={`min-h-screen relative selection:bg-blue-500/30 selection:text-white transition-colors duration-300 ${
+      glassSettings.themeMode === 'light'
+        ? 'bg-[#f8fafc] text-slate-900'
+        : glassSettings.themeMode === 'beige'
+        ? 'bg-[#f5f2eb] text-[#29231c]'
+        : glassSettings.themeMode === 'midnight'
+        ? 'bg-[#000000] text-slate-100'
+        : 'bg-[#060713] text-slate-100'
+    }`}>
       {/* Atmospheric 3D Liquid Glass Ambient Orbs */}
       <div className="ambient-glow-1 top-[-100px] left-[-150px]" />
       <div className="ambient-glow-2 top-[35%] right-[-120px]" />
       <div className="ambient-glow-3 bottom-[-100px] left-[20%]" />
 
-      {/* Main Container - Optimized Margins for Screen Real Estate (Mepet Kanan & Kiri yang Nyaman) */}
-      <div className="relative z-20 w-full max-w-[98%] 2xl:max-w-[96%] mx-auto px-2 sm:px-4 lg:px-6 py-5 sm:py-6 space-y-6">
+      {/* Main Container - Optimized Margins for Screen Real Estate (Ultra Responsive) */}
+      <div className="relative z-20 w-full max-w-[98%] 2xl:max-w-[96%] mx-auto px-2 sm:px-4 lg:px-6 py-4 sm:py-6 space-y-6 min-w-0 overflow-x-clip pb-28 md:pb-8">
         {/* Ultra-Clean Modern Apple Top Bar */}
         <header className="flex items-center justify-between gap-3 py-1">
           {/* Left: User profile & status */}
@@ -1059,7 +1097,7 @@ export default function App() {
           />
         </div>
 
-        {/* Multi-Page Modern Mobile & Desktop iOS Tab Navigation with Direct Swipe & Menu Trigger */}
+        {/* Multi-Page Modern Mobile & Desktop iOS Tab Navigation with Direct Swipe & Quick Theme Switcher */}
         <NavigationTabBar
           activePage={activePage}
           onSelectPage={setActivePage}
@@ -1067,6 +1105,7 @@ export default function App() {
           txCount={transactions.length}
           onOpenMenu={() => setIsMenuPopupOpen(true)}
           onOpenProjectManager={() => setIsProjectManagerOpen(true)}
+          onToggleTheme={handleToggleTheme}
         />
 
         {/* PAGE 1: SUMMARY */}
@@ -1234,6 +1273,7 @@ export default function App() {
         onOpenReport={() => setIsReportModalOpen(true)}
         onOpenInspector={() => setIsGlassModalOpen(true)}
         onOpenProjectManager={() => setIsProjectManagerOpen(true)}
+        onSelectTheme={handleSelectTheme}
         isGoogleConnected={Boolean(user)}
         user={user}
         spreadsheetId={spreadsheetId}
@@ -1262,56 +1302,59 @@ export default function App() {
         settings={glassSettings}
       />
 
-      {/* Floating Liquid Glass Interface Bottom Pill (Image 4 Match) */}
-      <div className="fixed bottom-4 inset-x-0 z-40 flex justify-center pointer-events-none px-3">
-        <div
-          style={{
-            background: 'rgba(15, 20, 38, 0.78)',
-            backdropFilter: 'blur(24px) saturate(190%)',
-            WebkitBackdropFilter: 'blur(24px) saturate(190%)',
-            boxShadow: '0 20px 40px -10px rgba(0, 0, 0, 0.7), inset 0 1px 1px rgba(255, 255, 255, 0.25)'
-          }}
-          className="pointer-events-auto flex items-center gap-1.5 p-1.5 rounded-full border border-white/15 text-xs font-semibold text-slate-200"
-        >
-          <button
-            onClick={() => {
-              triggerHaptic('selection');
-              setActivePage('summary');
+      {/* Floating Liquid Glass Interface Bottom Pill (Mobile Only & hidden when modal open to prevent blocking buttons) */}
+      {(!isMenuPopupOpen && !isReportModalOpen && !isProjectManagerOpen && !isGlassModalOpen) && (
+        <div className="fixed bottom-4 inset-x-0 z-40 flex justify-center pointer-events-none px-3 md:hidden">
+          <div
+            style={{
+              background: glassSettings.themeMode === 'light' ? 'rgba(255, 255, 255, 0.92)' : glassSettings.themeMode === 'beige' ? 'rgba(255, 253, 248, 0.94)' : glassSettings.themeMode === 'midnight' ? 'rgba(5, 5, 8, 0.95)' : 'rgba(15, 20, 38, 0.85)',
+              borderColor: glassSettings.themeMode === 'light' ? 'rgba(203, 213, 225, 0.9)' : glassSettings.themeMode === 'beige' ? 'rgba(223, 213, 198, 0.95)' : 'rgba(255, 255, 255, 0.15)',
+              backdropFilter: 'blur(24px) saturate(190%)',
+              WebkitBackdropFilter: 'blur(24px) saturate(190%)',
+              boxShadow: '0 20px 40px -10px rgba(0, 0, 0, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.25)'
             }}
-            className={`px-3 py-1.5 rounded-full transition ${
-              activePage === 'summary'
-                ? 'bg-white/20 text-white font-bold'
-                : 'hover:text-white hover:bg-white/5 text-slate-300'
-            }`}
+            className="pointer-events-auto flex items-center gap-1.5 p-1.5 rounded-full border text-xs font-semibold text-slate-200"
           >
-            Dashboard
-          </button>
-          <button
-            onClick={() => {
-              triggerHaptic('selection');
-              setActivePage('cashflow');
-            }}
-            className={`px-3 py-1.5 rounded-full transition flex items-center gap-1 ${
-              activePage === 'cashflow'
-                ? 'bg-emerald-500/25 text-emerald-300 font-bold border border-emerald-500/30'
-                : 'hover:text-white hover:bg-white/5 text-slate-300'
-            }`}
-          >
-            <PlusCircle className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Cashflow</span>
-          </button>
-          <button
-            onClick={() => {
-              triggerHaptic('medium');
-              setIsMenuPopupOpen(true);
-            }}
-            className="px-3.5 py-1.5 rounded-full bg-blue-600/30 text-blue-300 hover:bg-blue-600/40 border border-blue-400/40 font-bold transition flex items-center gap-1.5 shadow-sm active:scale-95"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-sky-300" />
-            <span>Menu</span>
-          </button>
+            <button
+              onClick={() => {
+                triggerHaptic('selection');
+                setActivePage('summary');
+              }}
+              className={`px-3 py-1.5 rounded-full transition ${
+                activePage === 'summary'
+                  ? 'bg-white/20 text-white font-bold'
+                  : 'hover:text-white hover:bg-white/5 text-slate-300'
+              }`}
+            >
+              Dashboard
+            </button>
+            <button
+              onClick={() => {
+                triggerHaptic('selection');
+                setActivePage('cashflow');
+              }}
+              className={`px-3 py-1.5 rounded-full transition flex items-center gap-1 ${
+                activePage === 'cashflow'
+                  ? 'bg-emerald-500/25 text-emerald-300 font-bold border border-emerald-500/30'
+                  : 'hover:text-white hover:bg-white/5 text-slate-300'
+              }`}
+            >
+              <PlusCircle className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Cashflow</span>
+            </button>
+            <button
+              onClick={() => {
+                triggerHaptic('medium');
+                setIsMenuPopupOpen(true);
+              }}
+              className="px-3.5 py-1.5 rounded-full bg-blue-600/30 text-blue-300 hover:bg-blue-600/40 border border-blue-400/40 font-bold transition flex items-center gap-1.5 shadow-sm active:scale-95"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-sky-300" />
+              <span>Menu</span>
+            </button>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

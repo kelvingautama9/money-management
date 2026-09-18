@@ -227,7 +227,8 @@ export const DEFAULT_GLASS_SETTINGS: GlassSettings = {
   darkTint: 45,
   specularIntensity: 85,
   tilt3d: false,
-  activePreset: 'ios26'
+  activePreset: 'ios26',
+  themeMode: 'dark'
 };
 
 export const AVAILABLE_CATEGORIES = [
