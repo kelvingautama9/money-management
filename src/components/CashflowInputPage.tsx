@@ -11,6 +11,13 @@ import {
   AVAILABLE_ACCOUNTS
 } from '../data/initialData';
 import { formatRupiah } from '../lib/sheetsApi';
+import {
+  SHEET_MONTHS,
+  normalizeMonthTitleCase,
+  getCategoryStyle,
+  getAccountStyle,
+  getTypeStyle
+} from '../lib/sheetStyles';
 import { triggerHaptic } from '../lib/haptics';
 import { useSwipeScroll } from '../lib/useSwipeScroll';
 import {
@@ -140,7 +147,7 @@ export const CashflowInputPage: React.FC<CashflowInputPageProps> = ({
       setIsSubmitting(true);
       await onAddTransaction(
         {
-          bulan,
+          bulan: normalizeMonthTitleCase(bulan),
           kategori: selectedCategory,
           akun: selectedAccount,
           tipe: selectedType,
@@ -302,12 +309,25 @@ export const CashflowInputPage: React.FC<CashflowInputPageProps> = ({
             </div>
           </div>
 
-          {/* 3. Compact Two-Column Row: Kategori & Akun */}
+          {/* 3. Compact Two-Column Row: Kategori & Akun with Google Sheet Visual Indicators */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="text-[11px] font-semibold text-slate-400 block mb-1">
-                Kategori Pos
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[11px] font-semibold text-slate-400 block">
+                  Kategori Pos (Google Sheet)
+                </label>
+                {/* Chip Preview */}
+                <span
+                  style={{
+                    backgroundColor: getCategoryStyle(selectedCategory).rawBg,
+                    color: getCategoryStyle(selectedCategory).rawText
+                  }}
+                  className="text-[10px] font-medium px-2 py-0.5 rounded-full inline-flex items-center gap-1 shadow-sm"
+                >
+                  <span>{selectedCategory}</span>
+                  <span className="text-[8px] opacity-70">▼</span>
+                </span>
+              </div>
               <select
                 value={selectedCategory}
                 onChange={(e) => handleSelectCategory(e.target.value)}
@@ -322,9 +342,22 @@ export const CashflowInputPage: React.FC<CashflowInputPageProps> = ({
             </div>
 
             <div>
-              <label className="text-[11px] font-semibold text-slate-400 block mb-1">
-                Rekening / Dompet
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[11px] font-semibold text-slate-400 block">
+                  Rekening / Dompet (Google Sheet)
+                </label>
+                {/* Chip Preview */}
+                <span
+                  style={{
+                    backgroundColor: getAccountStyle(selectedAccount).rawBg,
+                    color: getAccountStyle(selectedAccount).rawText
+                  }}
+                  className="text-[10px] font-medium px-2 py-0.5 rounded-full inline-flex items-center gap-1 shadow-sm"
+                >
+                  <span>{selectedAccount}</span>
+                  <span className="text-[8px] opacity-70">▼</span>
+                </span>
+              </div>
               <select
                 value={selectedAccount}
                 onChange={(e) => setSelectedAccount(e.target.value)}
@@ -343,16 +376,19 @@ export const CashflowInputPage: React.FC<CashflowInputPageProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className="text-[11px] font-semibold text-slate-400 block mb-1">
-                Periode Bulan
+                Periode Bulan (Sheet Dropdown)
               </label>
-              <input
-                type="text"
-                required
-                value={bulan}
+              <select
+                value={normalizeMonthTitleCase(bulan)}
                 onChange={(e) => setBulan(e.target.value)}
-                placeholder="September"
-                className="w-full px-3 py-2 rounded-xl text-xs liquid-glass-input"
-              />
+                className="w-full px-3 py-2.5 rounded-xl text-xs liquid-glass-input cursor-pointer"
+              >
+                {SHEET_MONTHS.map((m) => (
+                  <option key={m} value={m} className="bg-slate-900 text-white">
+                    {m}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="sm:col-span-2">
               <label className="text-[11px] font-semibold text-slate-400 block mb-1">
@@ -447,9 +483,31 @@ export const CashflowInputPage: React.FC<CashflowInputPageProps> = ({
                       <span className="font-semibold text-white block truncate">
                         {tx.catatan || tx.kategori}
                       </span>
-                      <span className="text-[10px] text-slate-400 block truncate">
-                        {tx.kategori} • {tx.akun}
-                      </span>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <span
+                          style={{
+                            backgroundColor: getCategoryStyle(tx.kategori).rawBg,
+                            color: getCategoryStyle(tx.kategori).rawText
+                          }}
+                          className="text-[9px] font-medium px-1.5 py-0.2 rounded-full inline-flex items-center gap-0.5"
+                        >
+                          {tx.kategori}
+                        </span>
+                        <span
+                          style={{
+                            backgroundColor: getAccountStyle(tx.akun).rawBg,
+                            color: getAccountStyle(tx.akun).rawText
+                          }}
+                          className="text-[9px] font-medium px-1.5 py-0.2 rounded-full inline-flex items-center gap-0.5"
+                        >
+                          {tx.akun}
+                        </span>
+                        {tx.rowIndex && (
+                          <span className="text-[9px] font-mono text-slate-400">
+                            #{tx.rowIndex}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <span

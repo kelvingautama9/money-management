@@ -1,4 +1,7 @@
 import { Transaction, SheetSummary } from '../types';
+import { normalizeMonthTitleCase } from './sheetStyles';
+
+export { normalizeMonthTitleCase };
 
 /**
  * Extracts Google Spreadsheet ID from a URL or raw ID string.
@@ -117,15 +120,23 @@ export function parseSheetGridData(
     const col5 = (row[5] || '').toString().trim();
 
     const isHeaderRow =
-      col0.toLowerCase().includes('bulan') &&
-      (col1.toLowerCase().includes('kategori') || col2.toLowerCase().includes('akun'));
+      rowIndex === 0 ||
+      col1.toLowerCase() === 'kategori' ||
+      col2.toLowerCase() === 'akun' ||
+      col3.toLowerCase() === 'tipe' ||
+      (col0.toLowerCase().includes('bulan') &&
+        (col1.toLowerCase().includes('kategori') || col2.toLowerCase().includes('akun')));
 
-    if (!isHeaderRow && (col0 || col1 || col4)) {
+    // Only consider valid rows that have real category/account/amount, ignoring black empty separator rows
+    const isBlankSeparator = !col1 && !col2 && !col4 && !col5;
+
+    if (!isHeaderRow && !isBlankSeparator && (col1 || col2 || col4 || col5)) {
       const parsedAmount = parseCurrencyToNumber(col4);
-      if (col1 || col2 || parsedAmount !== 0) {
+      // Valid transaction must have category or non-zero amount or note
+      if (col1 || parsedAmount !== 0 || col5) {
         transactions.push({
           id: `sheet-tx-${sheetName}-${rowIndex + 1}`,
-          bulan: col0 || sheetName,
+          bulan: normalizeMonthTitleCase(col0 || sheetName),
           kategori: col1 || 'Lain-lain',
           akun: col2 || 'Bank BCA',
           tipe: (col3 as any) || 'Expense',
@@ -350,48 +361,73 @@ export async function appendRowToSheet(
   tx: Omit<Transaction, 'id'>,
   accessToken: string
 ): Promise<{ rowIndex?: number; rawResponse: any }> {
-  // CRITICAL: Send raw number for numeric amount column, NEVER "Rp 126.090"
-  // Google Sheets cell formatting handles currency display automatically
+  // Normalize month into Title Case (e.g. "September") so Google Sheet dropdown matches exact string
+  const normalizedMonth = normalizeMonthTitleCase(tx.bulan || sheetName);
+  // CRITICAL: Send raw number for numeric amount column, NEVER formatted string "Rp 126.090"
   const numericJumlah = Math.round(Number(tx.jumlah) || 0);
-  const rowValues = [[tx.bulan, tx.kategori, tx.akun, tx.tipe, numericJumlah, tx.catatan || '']];
+  const rowValues = [[normalizedMonth, tx.kategori, tx.akun, tx.tipe, numericJumlah, tx.catatan || '']];
 
-  // Try smart row detection to write directly to the next empty row in columns A..F
+  // Try last-populated row detection: scan A1:F200 to find the last filled row
+  // This ensures we NEVER overwrite black/empty divider rows (like row 11 or 23),
+  // placing new records immediately below the last record (e.g. below row 42 "NGEDATE SAMA SHAREEN")
   try {
     const existingRows = await fetchSheetValues(
       spreadsheetId,
-      formatSheetRange(sheetName, 'A1:B100'),
+      formatSheetRange(sheetName, 'A1:F200'),
       accessToken
     );
 
     if (existingRows && existingRows.length > 0) {
-      let targetRow = -1;
+      let lastPopulatedRow = 1; // Default after header row
+
       for (let i = 1; i < existingRows.length; i++) {
-        const col0 = (existingRows[i]?.[0] || '').toString().trim();
-        const col1 = (existingRows[i]?.[1] || '').toString().trim();
-        if (!col0 && !col1) {
-          targetRow = i + 1; // 1-indexed row number in Google Sheets
-          break;
+        const row = existingRows[i];
+        if (!row || row.length === 0) continue;
+
+        const col1 = (row[1] || '').toString().trim(); // Kategori
+        const col2 = (row[2] || '').toString().trim(); // Akun
+        const col3 = (row[3] || '').toString().trim(); // Tipe
+        const col4 = (row[4] || '').toString().trim(); // Jumlah
+        const col5 = (row[5] || '').toString().trim(); // Catatan
+
+        const isHeader =
+          col1.toLowerCase() === 'kategori' ||
+          col2.toLowerCase() === 'akun' ||
+          col3.toLowerCase() === 'tipe';
+
+        if (isHeader) continue;
+
+        // A row is considered populated if it has a Category or Note or Non-zero Amount or Account
+        const hasRealData =
+          Boolean(col1 && col1 !== '-') ||
+          Boolean(col5 && col5 !== '-') ||
+          (Boolean(col4) && parseCurrencyToNumber(col4) !== 0) ||
+          (Boolean(col2) && Boolean(col3));
+
+        if (hasRealData) {
+          lastPopulatedRow = Math.max(lastPopulatedRow, i + 1); // 1-indexed row number
         }
       }
 
-      // If all scanned rows have data, next empty row is existingRows.length + 1
-      if (targetRow === -1) {
-        targetRow = existingRows.length + 1;
-      }
+      // Target row is placed immediately below the last populated row!
+      const targetRow = lastPopulatedRow + 1;
 
       if (targetRow >= 2) {
         const updateRes = await updateRowInSheet(
           spreadsheetId,
           sheetName,
           targetRow,
-          tx as any,
+          {
+            ...tx,
+            bulan: normalizedMonth
+          } as any,
           accessToken
         );
         return { rowIndex: targetRow, rawResponse: updateRes };
       }
     }
   } catch (e) {
-    console.warn('Smart row detection fallback to append endpoint:', e);
+    console.warn('Smart last-row detection fallback to append endpoint:', e);
   }
 
   // Fallback: standard Google Sheets append endpoint
@@ -438,7 +474,8 @@ export async function updateRowInSheet(
 ) {
   // CRITICAL: Send raw number for numeric amount column, NEVER "Rp 126.090"
   const numericJumlah = Math.round(Number(tx.jumlah) || 0);
-  const rowValues = [[tx.bulan, tx.kategori, tx.akun, tx.tipe, numericJumlah, tx.catatan || '']];
+  const normalizedMonth = normalizeMonthTitleCase(tx.bulan || sheetName);
+  const rowValues = [[normalizedMonth, tx.kategori, tx.akun, tx.tipe, numericJumlah, tx.catatan || '']];
   const range = encodeURIComponent(formatSheetRange(sheetName, `A${rowIndex}:F${rowIndex}`));
 
   const res = await fetch(

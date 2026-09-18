@@ -10,6 +10,14 @@ import {
 import { AVAILABLE_CATEGORIES, AVAILABLE_ACCOUNTS } from '../data/initialData';
 import { formatRupiah } from '../lib/sheetsApi';
 import {
+  SHEET_MONTHS,
+  normalizeMonthTitleCase,
+  getCategoryStyle,
+  getAccountStyle,
+  getTypeStyle,
+  getAmountCellStyle
+} from '../lib/sheetStyles';
+import {
   Plus,
   Search,
   Filter,
@@ -22,7 +30,10 @@ import {
   Calendar,
   Layers,
   X,
-  FileSpreadsheet
+  FileSpreadsheet,
+  ChevronDown,
+  ArrowUpDown,
+  ListOrdered
 } from 'lucide-react';
 
 interface TransactionManagerProps {
@@ -74,9 +85,12 @@ export const TransactionManager: React.FC<TransactionManagerProps> = ({
     }
   }, [currentSheetName]);
 
-  // Filtered transactions
+  // Filter and Sort State
+  const [sortOrder, setSortOrder] = useState<'sheet' | 'newest'>('sheet');
+
+  // Filtered and Sorted transactions
   const filteredTransactions = useMemo(() => {
-    return transactions.filter((tx) => {
+    const list = transactions.filter((tx) => {
       const matchSearch =
         tx.catatan.toLowerCase().includes(searchQuery.toLowerCase()) ||
         tx.kategori.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -88,7 +102,19 @@ export const TransactionManager: React.FC<TransactionManagerProps> = ({
 
       return matchSearch && matchType && matchKat && matchAkun;
     });
-  }, [transactions, searchQuery, filterType, filterKategori, filterAkun]);
+
+    return list.sort((a, b) => {
+      if (sortOrder === 'sheet') {
+        const rowA = a.rowIndex !== undefined ? a.rowIndex : 999999;
+        const rowB = b.rowIndex !== undefined ? b.rowIndex : 999999;
+        return rowA - rowB;
+      } else {
+        const rowA = a.rowIndex !== undefined ? a.rowIndex : 0;
+        const rowB = b.rowIndex !== undefined ? b.rowIndex : 0;
+        return rowB - rowA;
+      }
+    });
+  }, [transactions, searchQuery, filterType, filterKategori, filterAkun, sortOrder]);
 
   const handleOpenAdd = () => {
     setFormBulan('September');
@@ -247,10 +273,10 @@ export const TransactionManager: React.FC<TransactionManagerProps> = ({
         </div>
       </div>
 
-      {/* Filter and Search Bar */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 my-5">
+      {/* Filter, Search, and Sort Bar */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 my-5">
         {/* Search */}
-        <div className="relative">
+        <div className="relative lg:col-span-1">
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
           <input
             type="text"
@@ -298,18 +324,41 @@ export const TransactionManager: React.FC<TransactionManagerProps> = ({
             <option key={a} value={a} className="bg-slate-900">{a}</option>
           ))}
         </select>
+
+        {/* Sort Order Toggle */}
+        <button
+          type="button"
+          onClick={() => setSortOrder(sortOrder === 'sheet' ? 'newest' : 'sheet')}
+          className="px-3 py-2 rounded-xl text-xs liquid-glass-input flex items-center justify-between gap-1.5 hover:bg-white/10 transition font-medium text-slate-200"
+          title="Ubah urutan tampilan baris rekapan"
+        >
+          <div className="flex items-center gap-1.5 truncate">
+            {sortOrder === 'sheet' ? (
+              <ListOrdered className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+            ) : (
+              <ArrowUpDown className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+            )}
+            <span className="truncate">
+              {sortOrder === 'sheet' ? 'Urutan Sheet (1 → N)' : 'Baris Terbaru'}
+            </span>
+          </div>
+          <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-slate-300">
+            {sortOrder === 'sheet' ? 'Sheet' : 'New'}
+          </span>
+        </button>
       </div>
 
-      {/* Transactions Table */}
+      {/* Transactions Table with Google Sheet Dropdown Rules and Conditional Formatting */}
       <div className="overflow-x-auto rounded-2xl border border-white/10">
-        <table className="w-full text-left text-xs text-slate-200">
+        <table className="w-full text-left text-xs text-slate-200 border-collapse">
           <thead className="bg-white/[0.04] text-[11px] uppercase tracking-wider text-slate-400 border-b border-white/10">
             <tr>
+              <th className="px-3 py-3 font-semibold text-center w-12">Baris</th>
               <th className="px-4 py-3 font-semibold">Bulan</th>
               <th className="px-4 py-3 font-semibold">Kategori</th>
               <th className="px-4 py-3 font-semibold">Akun</th>
               <th className="px-4 py-3 font-semibold">Tipe</th>
-              <th className="px-4 py-3 font-semibold text-right">Jumlah</th>
+              <th className="px-4 py-3 font-semibold text-center">Jumlah</th>
               <th className="px-4 py-3 font-semibold">Catatan / Keterangan</th>
               <th className="px-4 py-3 font-semibold text-center">Aksi</th>
             </tr>
@@ -317,55 +366,168 @@ export const TransactionManager: React.FC<TransactionManagerProps> = ({
           <tbody className="divide-y divide-white/5">
             {filteredTransactions.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-slate-400 text-xs">
+                <td colSpan={8} className="px-4 py-8 text-center text-slate-400 text-xs">
                   Tidak ada transaksi yang cocok dengan kriteria pencarian/filter.
                 </td>
               </tr>
             ) : (
-              filteredTransactions.map((tx) => (
-                <tr key={tx.id} className="hover:bg-white/[0.04] transition-colors">
-                  <td className="px-4 py-3 font-medium text-slate-300 whitespace-nowrap">{tx.bulan}</td>
-                  <td className="px-4 py-3 whitespace-nowrap">
-                    <span className="font-semibold text-white px-2 py-0.5 rounded-md bg-white/5 border border-white/10">
-                      {tx.kategori}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-slate-300 whitespace-nowrap">{tx.akun}</td>
-                  <td className="px-4 py-3 whitespace-nowrap">{getTypeBadge(tx.tipe)}</td>
-                  <td
-                    className={`px-4 py-3 font-mono font-bold text-right whitespace-nowrap ${
-                      tx.tipe === 'Income'
-                        ? 'text-emerald-400'
-                        : tx.tipe === 'Expense'
-                        ? 'text-rose-400'
-                        : 'text-slate-200'
-                    }`}
-                  >
-                    {formatRupiah(tx.jumlah)}
-                  </td>
-                  <td className="px-4 py-3 text-slate-300 max-w-xs truncate" title={tx.catatan}>
-                    {tx.catatan || '-'}
-                  </td>
-                  <td className="px-4 py-3 text-center whitespace-nowrap">
-                    <div className="inline-flex items-center gap-1.5">
-                      <button
-                        onClick={() => handleOpenEdit(tx)}
-                        title="Edit Baris"
-                        className="p-1.5 rounded-lg bg-white/5 hover:bg-white/15 text-slate-300 hover:text-white transition"
-                      >
-                        <Edit2 className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => setDeletingTx(tx)}
-                        title="Hapus Baris"
-                        className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/25 text-rose-300 transition"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
+              filteredTransactions.map((tx, idx) => {
+                const prevTx = idx > 0 ? filteredTransactions[idx - 1] : null;
+                const currentRow = tx.rowIndex || 0;
+                const prevRow = prevTx?.rowIndex || 0;
+
+                // Detect divider gaps matching user's black separator rows in Google Sheets (Row 11 and Row 23)
+                const showDivider11 =
+                  sortOrder === 'sheet' &&
+                  prevRow > 0 &&
+                  prevRow <= 10 &&
+                  currentRow >= 12;
+
+                const showDivider23 =
+                  sortOrder === 'sheet' &&
+                  prevRow > 0 &&
+                  prevRow <= 22 &&
+                  currentRow >= 24;
+
+                const katStyle = getCategoryStyle(tx.kategori);
+                const accStyle = getAccountStyle(tx.akun);
+                const tipeStyle = getTypeStyle(tx.tipe);
+                const amountStyle = getAmountCellStyle(tx.tipe);
+
+                return (
+                  <React.Fragment key={tx.id}>
+                    {/* Visual Section Divider 1 (Row 11: Repetitive Monthly Split) */}
+                    {showDivider11 && (
+                      <tr className="bg-black/80">
+                        <td
+                          colSpan={8}
+                          className="px-4 py-2 text-center text-[11px] font-semibold text-slate-400 border-y border-white/10 tracking-wide"
+                        >
+                          <div className="flex items-center justify-center gap-2">
+                            <span className="w-12 h-px bg-white/20"></span>
+                            <span>── BARIS PEMISAH SHEET: PENGELUARAN BULANAN REPETISI (BARIS 11) ──</span>
+                            <span className="w-12 h-px bg-white/20"></span>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+
+                    {/* Visual Section Divider 2 (Row 23: Daily / Discretionary Split) */}
+                    {showDivider23 && (
+                      <tr className="bg-black/80">
+                        <td
+                          colSpan={8}
+                          className="px-4 py-2 text-center text-[11px] font-semibold text-slate-400 border-y border-white/10 tracking-wide"
+                        >
+                          <div className="flex items-center justify-center gap-2">
+                            <span className="w-12 h-px bg-white/20"></span>
+                            <span>── BARIS PEMISAH SHEET: MUTASI HARIAN & JAJAN (BARIS 23) ──</span>
+                            <span className="w-12 h-px bg-white/20"></span>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+
+                    <tr className="hover:bg-white/[0.04] transition-colors group">
+                      {/* Row Index Indicator */}
+                      <td className="px-3 py-3 text-center text-[11px] font-mono text-slate-400 whitespace-nowrap">
+                        {tx.rowIndex ? (
+                          <span className="px-1.5 py-0.5 rounded bg-white/5 border border-white/10 font-bold text-slate-300">
+                            #{tx.rowIndex}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 text-[10px] italic">Baru</span>
+                        )}
+                      </td>
+
+                      {/* Bulan Dropdown Chip */}
+                      <td className="px-4 py-3 font-medium whitespace-nowrap">
+                        <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-full bg-slate-800 text-slate-200 border border-slate-700 shadow-sm">
+                          {tx.bulan}
+                          <ChevronDown className="w-3 h-3 text-slate-400 opacity-60" />
+                        </span>
+                      </td>
+
+                      {/* Kategori Dropdown Chip (Google Sheet Color & Caret) */}
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <span
+                          style={{
+                            backgroundColor: katStyle.rawBg,
+                            color: katStyle.rawText
+                          }}
+                          className="inline-flex items-center gap-1.5 font-medium text-[11px] px-2.5 py-1 rounded-full shadow-sm font-sans tracking-tight"
+                        >
+                          <span className="truncate max-w-[120px]">{tx.kategori}</span>
+                          <span className="text-[8px] opacity-70">▼</span>
+                        </span>
+                      </td>
+
+                      {/* Akun Dropdown Chip (Google Sheet Color & Caret) */}
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <span
+                          style={{
+                            backgroundColor: accStyle.rawBg,
+                            color: accStyle.rawText
+                          }}
+                          className="inline-flex items-center gap-1.5 font-medium text-[11px] px-2.5 py-1 rounded-full shadow-sm font-sans tracking-tight"
+                        >
+                          <span className="truncate max-w-[130px]">{tx.akun}</span>
+                          <span className="text-[8px] opacity-70">▼</span>
+                        </span>
+                      </td>
+
+                      {/* Tipe Dropdown Chip (Google Sheet Color & Caret) */}
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <span
+                          style={{
+                            backgroundColor: tipeStyle.rawBg,
+                            color: tipeStyle.rawText
+                          }}
+                          className="inline-flex items-center gap-1.5 font-semibold text-[11px] px-2.5 py-1 rounded-full shadow-sm font-sans tracking-tight"
+                        >
+                          <span>{tx.tipe}</span>
+                          <span className="text-[8px] opacity-70">▼</span>
+                        </span>
+                      </td>
+
+                      {/* Jumlah Cell (Exact Google Sheet Conditional Formatting) */}
+                      <td className="px-4 py-3 whitespace-nowrap text-center">
+                        <div
+                          className={amountStyle.className}
+                          style={amountStyle.inlineStyle}
+                        >
+                          {formatRupiah(tx.jumlah)}
+                        </div>
+                      </td>
+
+                      {/* Catatan */}
+                      <td className="px-4 py-3 text-slate-300 max-w-xs truncate text-xs" title={tx.catatan}>
+                        {tx.catatan || '-'}
+                      </td>
+
+                      {/* Action buttons */}
+                      <td className="px-4 py-3 text-center whitespace-nowrap">
+                        <div className="inline-flex items-center gap-1.5">
+                          <button
+                            onClick={() => handleOpenEdit(tx)}
+                            title="Edit Baris Transaksi"
+                            className="p-1.5 rounded-lg bg-white/5 hover:bg-white/15 text-slate-300 hover:text-white transition"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => setDeletingTx(tx)}
+                            title="Hapus Baris Transaksi"
+                            className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/25 text-rose-300 transition"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  </React.Fragment>
+                );
+              })
             )}
           </tbody>
         </table>
@@ -401,13 +563,15 @@ export const TransactionManager: React.FC<TransactionManagerProps> = ({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-slate-400 block mb-1 font-medium">Bulan Periode</label>
-                  <input
-                    type="text"
-                    required
-                    value={formBulan}
+                  <select
+                    value={normalizeMonthTitleCase(formBulan)}
                     onChange={(e) => setFormBulan(e.target.value)}
                     className="w-full px-3 py-2 rounded-xl text-xs liquid-glass-input"
-                  />
+                  >
+                    {SHEET_MONTHS.map((m) => (
+                      <option key={m} value={m} className="bg-slate-900">{m}</option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="text-xs text-slate-400 block mb-1 font-medium">Tipe Transaksi</label>
