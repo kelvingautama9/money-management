@@ -30,14 +30,15 @@ export const GlassContainer: React.FC<GlassContainerProps> = ({
   let highlightColor = `linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, ${0.7 * specular}) 50%, transparent 100%)`;
 
   if (theme === 'light') {
-    bgColor = `rgba(255, 255, 255, ${Math.min(0.92, 0.75 + opacityDecimal * 0.2)})`;
-    borderColor = 'rgba(203, 213, 225, 0.85)';
+    bgColor = `rgba(255, 255, 255, ${Math.min(0.88, 0.65 + opacityDecimal * 0.18)})`;
+    borderColor = 'rgba(226, 232, 240, 0.85)';
     boxShadow = `
-      0 12px 32px -8px rgba(0, 0, 0, 0.08),
-      0 2px 6px -1px rgba(0, 0, 0, 0.04),
-      inset 0 1.5px 0.5px rgba(255, 255, 255, 0.9)
+      0 16px 40px -12px rgba(99, 102, 241, 0.08),
+      0 4px 16px -2px rgba(148, 163, 184, 0.08),
+      inset 0 1.5px 1px rgba(255, 255, 255, 0.95),
+      inset 0 -1px 1px rgba(241, 245, 249, 0.6)
     `;
-    highlightColor = 'linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.95) 50%, transparent 100%)';
+    highlightColor = 'linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.98) 50%, transparent 100%)';
   } else if (theme === 'beige') {
     bgColor = `rgba(255, 253, 248, ${Math.min(0.94, 0.78 + opacityDecimal * 0.2)})`;
     borderColor = 'rgba(224, 214, 200, 0.9)';

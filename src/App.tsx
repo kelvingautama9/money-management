@@ -50,6 +50,8 @@ import { triggerHaptic } from './lib/haptics';
 import { LoginPage } from './components/LoginPage';
 import { SyncStatusHeaderBadge } from './components/SyncStatusHeaderBadge';
 import { NavigationTabBar, ActivePage } from './components/NavigationTabBar';
+import { LiquidSidebar } from './components/LiquidSidebar';
+import { LiquidHeader } from './components/LiquidHeader';
 import { GoogleSheetMonthTabBar } from './components/GoogleSheetMonthTabBar';
 import { CashflowInputPage } from './components/CashflowInputPage';
 import { AccountsPage } from './components/AccountsPage';
@@ -109,6 +111,24 @@ export default function App() {
 
   // --- Multi-Page Navigation State ---
   const [activePage, setActivePage] = useState<ActivePage>('summary');
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('kelvin_financial_sidebar_collapsed') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+
+  const handleToggleSidebarCollapse = useCallback(() => {
+    setIsSidebarCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('kelvin_financial_sidebar_collapsed', String(next));
+      } catch {}
+      return next;
+    });
+  }, []);
 
   // --- Auth & Google Sheets State ---
   const [user, setUser] = useState<User | PersistedUser | null>(() => getPersistedUser());
@@ -1355,289 +1375,271 @@ export default function App() {
           <div className="ambient-glow-2 top-[35%] right-[-120px]" />
           <div className="ambient-glow-3 bottom-[-100px] left-[20%]" />
 
-          {/* Main Container - Balanced Apple Layout for Desktop & Mobile */}
-          <div className="relative z-20 w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-6 min-w-0 pb-28 sm:pb-32">
-            {/* Dev Mode Banner with Exit Option */}
-            {user?.isDevMode && (
-              <motion.div
-                initial={{ opacity: 0, y: -8 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="w-full p-3 sm:px-4 sm:py-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 backdrop-blur-xl flex flex-col sm:flex-row items-center justify-between gap-3 text-amber-200 shadow-lg"
-              >
-                <div className="flex items-center gap-3 text-xs">
-                  <span className="px-2.5 py-1 rounded-full bg-amber-500/25 text-amber-300 font-extrabold text-[10px] tracking-widest uppercase border border-amber-400/40 shrink-0">
-                    DEV MODE (0000)
-                  </span>
-                  <span className="text-slate-200">
-                    Mode pratinjau aktif: Semua angka keuangan diset <strong>Rp 0</strong>. Untuk menghubungkan data Google Sheet riil Anda, silakan keluar dari Dev Mode dan login via Google.
-                  </span>
-                </div>
-                <button
-                  onClick={handleGoogleLogout}
-                  className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs shadow-md transition active:scale-95 shrink-0 flex items-center gap-1.5 cursor-pointer"
-                >
-                  <LogOut className="w-3.5 h-3.5" />
-                  <span>Keluar Dev Mode & Login Google</span>
-                </button>
-              </motion.div>
-            )}
-
-            {/* Ultra-Clean Modern Apple Top Bar */}
-            <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-1">
-              {/* Left: User profile & month */}
-              <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-600 via-indigo-600 to-sky-500 p-0.5 shadow-md shrink-0">
-                  <div className="w-full h-full rounded-full bg-[#0d1024] flex items-center justify-center text-sm font-black text-sky-300">
-                    {user?.displayName ? user.displayName.charAt(0).toUpperCase() : 'K'}
-                  </div>
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-sm sm:text-base font-bold tracking-tight">
-                      {user?.displayName ? `Halo, ${user.displayName.split(' ')[0]}` : 'Halo, Kelvin'}
-                    </h2>
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" title="Online" />
-                  </div>
-                  <p className="text-[11px] text-slate-400">
-                    <span className="font-semibold text-slate-200">{formattedSheetMonth}</span>
-                  </p>
-                </div>
-              </div>
-
-              {/* Right: Live Sync Status Badge & Clean Action Buttons */}
-              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                {/* Prominent Live Google Sheets Sync Status Indicator Badge */}
-                <SyncStatusHeaderBadge
-                  user={user}
-                  spreadsheetId={spreadsheetId}
-                  sheetName={sheetName}
-                  isSyncing={isSyncing}
-                  lastSynced={lastSynced}
-                  txCount={transactions.length}
-                  onSyncNow={handleSyncFromSheets}
-                  settings={glassSettings}
-                  onOpenProjectManager={() => setIsProjectManagerOpen(true)}
-                />
-
-                {/* Quick Sync Button */}
-                <button
-                  onClick={() => {
-                    triggerHaptic('medium');
-                    handleSyncFromSheets();
-                  }}
-                  disabled={isSyncing}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-xs font-semibold text-slate-200 transition active:scale-95 disabled:opacity-50"
-                  title="Sinkronisasi Google Sheets Sekarang"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 text-sky-400 ${isSyncing ? 'animate-spin' : ''}`} />
-                  <span className="hidden md:inline">{isSyncing ? 'Sinkron...' : 'Sync'}</span>
-                </button>
-
-                {/* Laporan Otomatis */}
-                <button
-                  onClick={() => {
-                    triggerHaptic('light');
-                    setIsReportModalOpen(true);
-                  }}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-xs font-semibold text-slate-200 transition active:scale-95"
-                  title="Laporan Otomatis"
-                >
-                  <FileText className="w-3.5 h-3.5 text-emerald-400" />
-                  <span className="hidden md:inline">Laporan</span>
-                </button>
-
-                {/* Popup Menu Button (Semi-Transparent Glass Popup Container) */}
-                <button
-                  onClick={() => {
-                    triggerHaptic('medium');
-                    setIsMenuPopupOpen(true);
-                  }}
-                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-blue-600/30 hover:bg-blue-600/40 border border-blue-400/40 text-xs font-bold text-white shadow-lg shadow-blue-600/20 transition active:scale-95"
-                  title="Buka Menu & Navigasi"
-                >
-                  <Sliders className="w-3.5 h-3.5 text-blue-300" />
-                  <span>Menu</span>
-                </button>
-              </div>
-            </header>
-
-        {/* Sync Status Banner */}
-        {syncNotice && (
-          <div className="p-3 rounded-2xl bg-blue-500/15 border border-blue-400/30 flex items-center justify-between text-xs text-blue-200 animate-in fade-in duration-200">
-            <div className="flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4 text-blue-400 shrink-0" />
-              <span>{syncNotice}</span>
-            </div>
-            <button
-              onClick={() => setSyncNotice(null)}
-              className="text-xs text-blue-300 hover:text-white px-2 py-0.5 rounded-md hover:bg-white/10"
-            >
-              Tutup
-            </button>
-          </div>
-        )}
-
-        {/* 1 Compact Button Pilihan Bulan Google Sheet (Popup otomatis tertutup ketika dipilih) */}
-        <div className="animate-in fade-in duration-200">
-          <GoogleSheetMonthTabBar
-            currentSheet={sheetName}
-            onSelectSheet={handleSelectMonth}
-            availableSheets={availableSheets}
-            onAddNewSheet={handleAddNewSheet}
-            onRefreshTabs={handleRefreshSpreadsheetTabs}
-            isGoogleConnected={Boolean(user)}
-            user={user}
-            isSyncing={isSyncing}
-            onSyncCurrentSheet={handleSyncFromSheets}
-            settings={glassSettings}
-            txCountsByMonth={txCountsByMonth}
-          />
-        </div>
-
-        {/* Multi-Page Modern Mobile & Desktop iOS Tab Navigation with Direct Swipe & Quick Theme Switcher */}
-        <NavigationTabBar
-          activePage={activePage}
-          onSelectPage={setActivePage}
-          settings={glassSettings}
-          txCount={transactions.length}
-          onOpenMenu={() => setIsMenuPopupOpen(true)}
-          onOpenProjectManager={() => setIsProjectManagerOpen(true)}
-          onToggleTheme={handleToggleTheme}
-        />
-
-        {/* PAGE 1: SUMMARY (Clean, focused executive cockpit) */}
-        {activePage === 'summary' && (
-          <div className="space-y-6 animate-in fade-in duration-300">
-            <ExecutiveSummary
-              totalAset={totalAset}
-              cashStandbyDanaDarurat={cashStandbyDanaDarurat}
-              totalInvestment={totalInvestment}
-              totalPemasukan={totalPemasukan}
-              totalPengeluaran={totalPengeluaran}
-              sisaSaldoIncome={sisaSaldoIncome}
+          {/* Main Container - Balanced Apple Layout for Desktop & Mobile with Liquid Sidebar */}
+          <div className="relative z-20 w-full max-w-[1520px] mx-auto px-2 sm:px-4 lg:px-6 py-3 sm:py-5 flex gap-4 lg:gap-6 min-w-0 pb-28 sm:pb-32">
+            {/* Desktop Liquid Glass Sidebar & Mobile Slide-Over Drawer */}
+            <LiquidSidebar
+              activePage={activePage}
+              onSelectPage={setActivePage}
               settings={glassSettings}
-              budgets={budgets}
-              accounts={accounts}
-              transactions={transactions}
-              assets={assets}
-              history={history}
-              onNavigate={setActivePage}
-              onSyncGoogleSheets={handleSyncFromSheets}
-              onOpenProjectManager={() => setIsProjectManagerOpen(true)}
-              onOpenCalculator={() => setIsCalculatorOpen(true)}
-              isSyncing={isSyncing}
-              currentMonthSheet={sheetName}
-              availableSheets={availableSheets}
-              onSelectMonthSheet={handleSelectMonth}
-            />
-          </div>
-        )}
-
-        {/* PAGE 2: INPUT CASHFLOW (Pengeluaran & Pemasukan by Kategori Google Sheets) */}
-        {activePage === 'cashflow' && (
-          <div className="animate-in fade-in duration-300">
-            <CashflowInputPage
-              settings={glassSettings}
-              onAddTransaction={handleAddTransaction}
-              transactions={transactions}
-              isSyncing={isSyncing}
-              isGoogleConnected={Boolean(user)}
-              onNavigateToJournal={() => setActivePage('journal')}
-              currentSheetName={sheetName}
-              onSelectMonth={handleSelectMonth}
-              availableSheets={availableSheets}
-            />
-          </div>
-        )}
-
-        {/* PAGE 3: BUDGETING ENVELOPES */}
-        {activePage === 'budgeting' && (
-          <div className="space-y-6 animate-in fade-in duration-300">
-            <BudgetingTracker
-              budgets={budgets}
-              settings={glassSettings}
-              onAddBudget={handleAddBudget}
-              onEditBudget={handleEditBudget}
-              onDeleteBudget={handleDeleteBudget}
-            />
-
-            {/* Spending vs Envelope Detailed Insight */}
-            <div className="p-5 rounded-2xl bg-white/[0.03] border border-white/10 text-xs text-slate-300 leading-relaxed">
-              <h4 className="text-sm font-bold text-white mb-2 flex items-center gap-2">
-                <PieChart className="w-4 h-4 text-amber-400" />
-                Mekanisme Rolling Budget & Sinking Fund
-              </h4>
-              <p>
-                Setiap pos di atas mengadopsi prinsip amplop finansial (*Envelope Budgeting*): Saldo bulan lalu yang
-                belum terserap otomatis diakumulasikan (*rolled-over*) bersama jatah alokasi gaji bulan baru,
-                menghasilkan total plafon belanja yang aman tanpa risiko defisit.
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* PAGE 4: PORTOFOLIO & INVESTASI */}
-        {activePage === 'portfolio' && (
-          <div className="space-y-6 animate-in fade-in duration-300">
-            <InvestmentPortfolio
-              assets={assets}
-              history={history}
-              settings={glassSettings}
-              totalProfit2026={1148790}
-              onAddAsset={handleAddAsset}
-              onEditAsset={handleEditAsset}
-              onDeleteAsset={handleDeleteAsset}
+              txCount={transactions.length}
+              onOpenReport={() => setIsReportModalOpen(true)}
               onOpenSmartAnalysis={() => setIsSmartAnalysisOpen(true)}
               onOpenCalculator={() => setIsCalculatorOpen(true)}
-            />
-            <EmergencyFundCard fund={emergencyFund} settings={glassSettings} />
-          </div>
-        )}
-
-        {/* PAGE 5: SALDO BY REKENING */}
-        {activePage === 'accounts' && (
-          <div className="animate-in fade-in duration-300">
-            <AccountsPage
-              accounts={accounts}
-              settings={glassSettings}
-              onTransfer={handleInternalTransfer}
-              transactions={transactions}
-              totalNetWorth={totalAset}
-              totalInvestment={totalInvestment}
-              onAddAccount={handleAddAccount}
-              onEditAccount={handleEditAccount}
-              onDeleteAccount={handleDeleteAccount}
-            />
-          </div>
-        )}
-
-        {/* PAGE 6: JURNAL & REKAP DATA */}
-        {activePage === 'journal' && (
-          <div className="animate-in fade-in duration-300">
-            <TransactionManager
-              transactions={transactions}
-              settings={glassSettings}
-              onAddTransaction={(tx) => handleAddTransaction(tx, true)}
-              onEditTransaction={handleEditTransaction}
-              onDeleteTransaction={handleDeleteTransaction}
-              onSyncGoogleSheet={handleSyncFromSheets}
-              isSyncing={isSyncing}
+              onOpenProjectManager={() => setIsProjectManagerOpen(true)}
+              onOpenSettings={() => setIsGlassModalOpen(true)}
+              onOpenMenuPopup={() => setIsMenuPopupOpen(true)}
+              onToggleTheme={handleToggleTheme}
+              user={user}
               currentSheetName={sheetName}
-              onSelectMonth={handleSelectMonth}
               availableSheets={availableSheets}
+              onSelectMonth={handleSelectMonth}
+              isSyncing={isSyncing}
+              onSyncNow={handleSyncFromSheets}
+              isCollapsed={isSidebarCollapsed}
+              onToggleCollapse={handleToggleSidebarCollapse}
+              isMobileOpen={isMobileSidebarOpen}
+              onCloseMobile={() => setIsMobileSidebarOpen(false)}
+            />
+
+            {/* Main Content Dashboard */}
+            <div className="flex-1 min-w-0 flex flex-col space-y-4 sm:space-y-6">
+              {/* Dev Mode Banner with Exit Option */}
+              {user?.isDevMode && (
+                <motion.div
+                  initial={{ opacity: 0, y: -8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="w-full p-3 sm:px-4 sm:py-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 backdrop-blur-xl flex flex-col sm:flex-row items-center justify-between gap-3 text-amber-200 shadow-lg"
+                >
+                  <div className="flex items-center gap-3 text-xs">
+                    <span className="px-2.5 py-1 rounded-full bg-amber-500/25 text-amber-300 font-extrabold text-[10px] tracking-widest uppercase border border-amber-400/40 shrink-0">
+                      DEV MODE (0000)
+                    </span>
+                    <span className="text-slate-200">
+                      Mode pratinjau aktif: Semua angka keuangan diset <strong>Rp 0</strong>. Untuk menghubungkan data Google Sheet riil Anda, silakan keluar dari Dev Mode dan login via Google.
+                    </span>
+                  </div>
+                  <button
+                    onClick={handleGoogleLogout}
+                    className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs shadow-md transition active:scale-95 shrink-0 flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>Keluar Dev Mode & Login Google</span>
+                  </button>
+                </motion.div>
+              )}
+
+              {/* Liquid Top Header */}
+              <LiquidHeader
+                activePage={activePage}
+                onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)}
+                onOpenMenuPopup={() => setIsMenuPopupOpen(true)}
+                onOpenProjectManager={() => setIsProjectManagerOpen(true)}
+                onOpenCalculator={() => setIsCalculatorOpen(true)}
+                onNavigateToCashflow={() => setActivePage('cashflow')}
+                settings={glassSettings}
+                onToggleTheme={handleToggleTheme}
+                currentSheetName={sheetName}
+                availableSheets={availableSheets}
+                onSelectMonth={handleSelectMonth}
+                user={user}
+                isSyncing={isSyncing}
+                onSyncNow={handleSyncFromSheets}
+                txCountsByMonth={txCountsByMonth}
+              />
+
+              {/* Sync Status Banner */}
+              {syncNotice && (
+                <div className="p-3 rounded-2xl bg-blue-500/15 border border-blue-400/30 flex items-center justify-between text-xs text-blue-200 animate-in fade-in duration-200">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="w-4 h-4 text-blue-400 shrink-0" />
+                    <span>{syncNotice}</span>
+                  </div>
+                  <button
+                    onClick={() => setSyncNotice(null)}
+                    className="text-xs text-blue-300 hover:text-white px-2 py-0.5 rounded-md hover:bg-white/10"
+                  >
+                    Tutup
+                  </button>
+                </div>
+              )}
+
+              {/* 1 Compact Button Pilihan Bulan Google Sheet */}
+              <div className="animate-in fade-in duration-200">
+                <GoogleSheetMonthTabBar
+                  currentSheet={sheetName}
+                  onSelectSheet={handleSelectMonth}
+                  availableSheets={availableSheets}
+                  onAddNewSheet={handleAddNewSheet}
+                  onRefreshTabs={handleRefreshSpreadsheetTabs}
+                  isGoogleConnected={Boolean(user)}
+                  user={user}
+                  isSyncing={isSyncing}
+                  onSyncCurrentSheet={handleSyncFromSheets}
+                  settings={glassSettings}
+                  txCountsByMonth={txCountsByMonth}
+                />
+              </div>
+
+              {/* Smooth Animated Page Transitions Container */}
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={activePage}
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -12 }}
+                  transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                  className="w-full"
+                >
+                  {/* PAGE 1: SUMMARY (Clean, focused executive cockpit) */}
+                  {activePage === 'summary' && (
+                    <div className="space-y-6">
+                      <ExecutiveSummary
+                        totalAset={totalAset}
+                        cashStandbyDanaDarurat={cashStandbyDanaDarurat}
+                        totalInvestment={totalInvestment}
+                        totalPemasukan={totalPemasukan}
+                        totalPengeluaran={totalPengeluaran}
+                        sisaSaldoIncome={sisaSaldoIncome}
+                        settings={glassSettings}
+                        budgets={budgets}
+                        accounts={accounts}
+                        transactions={transactions}
+                        assets={assets}
+                        history={history}
+                        onNavigate={setActivePage}
+                        onSyncGoogleSheets={handleSyncFromSheets}
+                        onOpenProjectManager={() => setIsProjectManagerOpen(true)}
+                        onOpenCalculator={() => setIsCalculatorOpen(true)}
+                        isSyncing={isSyncing}
+                        currentMonthSheet={sheetName}
+                        availableSheets={availableSheets}
+                        onSelectMonthSheet={handleSelectMonth}
+                      />
+                    </div>
+                  )}
+
+                  {/* PAGE 2: INPUT CASHFLOW (Pengeluaran & Pemasukan by Kategori Google Sheets) */}
+                  {activePage === 'cashflow' && (
+                    <div>
+                      <CashflowInputPage
+                        settings={glassSettings}
+                        onAddTransaction={handleAddTransaction}
+                        transactions={transactions}
+                        isSyncing={isSyncing}
+                        isGoogleConnected={Boolean(user)}
+                        onNavigateToJournal={() => setActivePage('journal')}
+                        currentSheetName={sheetName}
+                        onSelectMonth={handleSelectMonth}
+                        availableSheets={availableSheets}
+                      />
+                    </div>
+                  )}
+
+                  {/* PAGE 3: BUDGETING ENVELOPES */}
+                  {activePage === 'budgeting' && (
+                    <div className="space-y-6">
+                      <BudgetingTracker
+                        budgets={budgets}
+                        settings={glassSettings}
+                        onAddBudget={handleAddBudget}
+                        onEditBudget={handleEditBudget}
+                        onDeleteBudget={handleDeleteBudget}
+                      />
+
+                      {/* Spending vs Envelope Detailed Insight */}
+                      <div className="p-5 rounded-2xl bg-white/[0.03] border border-white/10 text-xs text-slate-400 leading-relaxed">
+                        <h4 className="text-sm font-bold text-slate-800 dark:text-white mb-2 flex items-center gap-2">
+                          <PieChart className="w-4 h-4 text-amber-500" />
+                          Mekanisme Rolling Budget & Sinking Fund
+                        </h4>
+                        <p>
+                          Setiap pos di atas mengadopsi prinsip amplop finansial (*Envelope Budgeting*): Saldo bulan lalu yang
+                          belum terserap otomatis diakumulasikan (*rolled-over*) bersama jatah alokasi gaji bulan baru,
+                          menghasilkan total plafon belanja yang aman tanpa risiko defisit.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* PAGE 4: PORTOFOLIO & INVESTASI */}
+                  {activePage === 'portfolio' && (
+                    <div className="space-y-6">
+                      <InvestmentPortfolio
+                        assets={assets}
+                        history={history}
+                        settings={glassSettings}
+                        totalProfit2026={1148790}
+                        onAddAsset={handleAddAsset}
+                        onEditAsset={handleEditAsset}
+                        onDeleteAsset={handleDeleteAsset}
+                        onOpenSmartAnalysis={() => setIsSmartAnalysisOpen(true)}
+                        onOpenCalculator={() => setIsCalculatorOpen(true)}
+                      />
+                      <EmergencyFundCard fund={emergencyFund} settings={glassSettings} />
+                    </div>
+                  )}
+
+                  {/* PAGE 5: SALDO BY REKENING */}
+                  {activePage === 'accounts' && (
+                    <div>
+                      <AccountsPage
+                        accounts={accounts}
+                        settings={glassSettings}
+                        onTransfer={handleInternalTransfer}
+                        transactions={transactions}
+                        totalNetWorth={totalAset}
+                        totalInvestment={totalInvestment}
+                        onAddAccount={handleAddAccount}
+                        onEditAccount={handleEditAccount}
+                        onDeleteAccount={handleDeleteAccount}
+                      />
+                    </div>
+                  )}
+
+                  {/* PAGE 6: JURNAL & REKAP DATA */}
+                  {activePage === 'journal' && (
+                    <div>
+                      <TransactionManager
+                        transactions={transactions}
+                        settings={glassSettings}
+                        onAddTransaction={(tx) => handleAddTransaction(tx, true)}
+                        onEditTransaction={handleEditTransaction}
+                        onDeleteTransaction={handleDeleteTransaction}
+                        onSyncGoogleSheet={handleSyncFromSheets}
+                        isSyncing={isSyncing}
+                        currentSheetName={sheetName}
+                        onSelectMonth={handleSelectMonth}
+                        availableSheets={availableSheets}
+                      />
+                    </div>
+                  )}
+                </motion.div>
+              </AnimatePresence>
+
+              {/* Footer */}
+              <footer className="pt-6 pb-6 border-t border-slate-200/70 dark:border-white/10 text-center text-xs text-slate-500 flex flex-col sm:flex-row items-center justify-between gap-3">
+                <p>© 2026 Kelvin Gautama • Liquid Glass OS</p>
+                <p className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  Real-time Google Workspace Sheets Synchronized
+                </p>
+              </footer>
+            </div>
+          </div>
+
+          {/* Floating Mobile Bottom Pill Bar (Hidden on desktop where LiquidSidebar is pinned) */}
+          <div className="lg:hidden">
+            <NavigationTabBar
+              activePage={activePage}
+              onSelectPage={setActivePage}
+              settings={glassSettings}
+              txCount={transactions.length}
+              onOpenMenu={() => setIsMobileSidebarOpen(true)}
+              onOpenProjectManager={() => setIsProjectManagerOpen(true)}
+              onToggleTheme={handleToggleTheme}
             />
           </div>
-        )}
-
-        {/* Footer */}
-        <footer className="pt-6 pb-10 border-t border-white/10 text-center text-xs text-slate-500 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <p>© 2026 Kelvin Gautama</p>
-          <p className="flex items-center gap-1.5 text-slate-400">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-            Real-time Google Workspace Sheets Synchronized
-          </p>
-        </footer>
-      </div>
 
       {/* Glass Inspector Modal */}
       <GlassSettingsModal

@@ -223,12 +223,12 @@ export const INITIAL_INVESTMENT_HISTORY: InvestmentHistory[] = [
 
 export const DEFAULT_GLASS_SETTINGS: GlassSettings = {
   blur: 24,
-  translucency: 65,
-  darkTint: 45,
-  specularIntensity: 85,
+  translucency: 75,
+  darkTint: 10,
+  specularIntensity: 90,
   tilt3d: false,
   activePreset: 'ios26',
-  themeMode: 'dark'
+  themeMode: 'light'
 };
 
 export const AVAILABLE_CATEGORIES = [

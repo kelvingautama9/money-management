@@ -81,9 +81,27 @@
   opacity: 0.6;
 }
 
-.theme-light .ambient-glow-1,
-.theme-light .ambient-glow-2,
-.theme-light .ambient-glow-3,
+.theme-light .ambient-glow-1 {
+  display: block !important;
+  background: radial-gradient(circle, rgba(147, 197, 253, 0.32) 0%, rgba(196, 181, 253, 0.18) 50%, transparent 70%);
+  filter: blur(50px);
+  opacity: 0.85;
+}
+
+.theme-light .ambient-glow-2 {
+  display: block !important;
+  background: radial-gradient(circle, rgba(192, 132, 252, 0.25) 0%, rgba(224, 231, 255, 0.15) 50%, transparent 70%);
+  filter: blur(50px);
+  opacity: 0.85;
+}
+
+.theme-light .ambient-glow-3 {
+  display: block !important;
+  background: radial-gradient(circle, rgba(125, 211, 252, 0.28) 0%, rgba(243, 232, 255, 0.15) 50%, transparent 70%);
+  filter: blur(50px);
+  opacity: 0.85;
+}
+
 .theme-beige .ambient-glow-1,
 .theme-beige .ambient-glow-2,
 .theme-beige .ambient-glow-3 {
@@ -142,13 +160,13 @@
 
 /* --- THEME SYSTEM: CLEAN APPLE LIGHT, BEIGE, & MIDNIGHT STYLING --- */
 .theme-light {
-  background-color: #f1f5f9 !important;
+  background: radial-gradient(at 0% 0%, #e0f2fe 0, transparent 50%), radial-gradient(at 100% 0%, #ede9fe 0, transparent 50%), radial-gradient(at 50% 100%, #f3e8ff 0, transparent 50%), #f8fafc !important;
   color: #0f172a !important;
 }
 
 .theme-light body,
 .theme-light #root {
-  background-color: #f1f5f9 !important;
+  background: radial-gradient(at 0% 0%, #e0f2fe 0, transparent 50%), radial-gradient(at 100% 0%, #ede9fe 0, transparent 50%), radial-gradient(at 50% 100%, #f3e8ff 0, transparent 50%), #f8fafc !important;
   color: #0f172a !important;
 }
 
@@ -291,18 +309,6 @@
 .theme-light select option {
   background: #ffffff !important;
   color: #0f172a !important;
-}
-
-.theme-light .ambient-glow-1 {
-  background: radial-gradient(circle, rgba(147, 197, 253, 0.2) 0%, rgba(221, 214, 254, 0.08) 50%, transparent 70%);
-}
-
-.theme-light .ambient-glow-2 {
-  background: radial-gradient(circle, rgba(167, 243, 208, 0.16) 0%, rgba(199, 210, 254, 0.08) 50%, transparent 70%);
-}
-
-.theme-light .ambient-glow-3 {
-  background: radial-gradient(circle, rgba(254, 215, 170, 0.15) 0%, rgba(253, 230, 138, 0.06) 50%, transparent 70%);
 }
 
 /* Warm Editorial Beige Theme */
