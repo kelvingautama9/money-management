@@ -442,9 +442,9 @@ export const TransactionManager: React.FC<TransactionManagerProps> = ({
 
                       {/* Bulan Dropdown Chip */}
                       <td className="px-4 py-3 font-medium whitespace-nowrap">
-                        <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-full bg-slate-800 text-slate-200 border border-slate-700 shadow-sm">
-                          {tx.bulan}
-                          <ChevronDown className="w-3 h-3 text-slate-400 opacity-60" />
+                        <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/30 dark:border-blue-400/30 shadow-sm transition">
+                          <span>{tx.bulan || currentSheetName || 'Bulan'}</span>
+                          <ChevronDown className="w-3 h-3 text-blue-600 dark:text-blue-400 opacity-80" />
                         </span>
                       </td>
 

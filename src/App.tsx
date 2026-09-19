@@ -1376,7 +1376,7 @@ export default function App() {
           <div className="ambient-glow-3 bottom-[-100px] left-[20%]" />
 
           {/* Main Container - Balanced Apple Layout for Desktop & Mobile with Liquid Sidebar */}
-          <div className="relative z-20 w-full max-w-[1520px] mx-auto px-2 sm:px-4 lg:px-6 py-3 sm:py-5 flex gap-4 lg:gap-6 min-w-0 pb-28 sm:pb-32">
+          <div className="relative z-20 w-full max-w-[1520px] mx-auto px-2 sm:px-4 lg:px-6 py-3 sm:py-5 flex gap-4 lg:gap-6 min-w-0 pb-10 sm:pb-12">
             {/* Desktop Liquid Glass Sidebar & Mobile Slide-Over Drawer */}
             <LiquidSidebar
               activePage={activePage}
@@ -1450,14 +1450,14 @@ export default function App() {
 
               {/* Sync Status Banner */}
               {syncNotice && (
-                <div className="p-3 rounded-2xl bg-blue-500/15 border border-blue-400/30 flex items-center justify-between text-xs text-blue-200 animate-in fade-in duration-200">
-                  <div className="flex items-center gap-2">
-                    <ShieldCheck className="w-4 h-4 text-blue-400 shrink-0" />
-                    <span>{syncNotice}</span>
+                <div className="p-3 sm:px-4 rounded-2xl bg-blue-500/10 dark:bg-blue-500/15 border border-blue-400/40 dark:border-blue-400/30 flex items-center justify-between gap-2 text-xs text-blue-900 dark:text-blue-100 shadow-sm animate-in fade-in duration-200">
+                  <div className="flex items-center gap-2 font-medium min-w-0">
+                    <ShieldCheck className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                    <span className="truncate">{syncNotice}</span>
                   </div>
                   <button
                     onClick={() => setSyncNotice(null)}
-                    className="text-xs text-blue-300 hover:text-white px-2 py-0.5 rounded-md hover:bg-white/10"
+                    className="text-xs font-bold text-blue-700 dark:text-blue-300 hover:text-blue-950 dark:hover:text-white px-2.5 py-1 rounded-lg hover:bg-blue-500/10 dark:hover:bg-white/10 transition shrink-0"
                   >
                     Tutup
                   </button>
@@ -1626,19 +1626,6 @@ export default function App() {
                 </p>
               </footer>
             </div>
-          </div>
-
-          {/* Floating Mobile Bottom Pill Bar (Hidden on desktop where LiquidSidebar is pinned) */}
-          <div className="lg:hidden">
-            <NavigationTabBar
-              activePage={activePage}
-              onSelectPage={setActivePage}
-              settings={glassSettings}
-              txCount={transactions.length}
-              onOpenMenu={() => setIsMobileSidebarOpen(true)}
-              onOpenProjectManager={() => setIsProjectManagerOpen(true)}
-              onToggleTheme={handleToggleTheme}
-            />
           </div>
 
       {/* Glass Inspector Modal */}

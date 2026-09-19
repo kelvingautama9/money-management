@@ -93,38 +93,38 @@ export const LiquidHeader: React.FC<LiquidHeaderProps> = ({
       />
 
       {/* Left: Mobile Drawer Trigger + Page Title */}
-      <div className="flex items-center gap-3 min-w-0">
+      <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1 sm:flex-initial">
         <button
           onClick={() => {
             triggerHaptic('light');
             onOpenMobileSidebar();
           }}
-          className="lg:hidden w-9 h-9 rounded-2xl bg-white/70 dark:bg-white/10 hover:bg-white dark:hover:bg-white/20 border border-slate-200/80 dark:border-white/15 flex items-center justify-center text-slate-700 dark:text-slate-200 shadow-sm transition active:scale-95 shrink-0"
+          className="lg:hidden w-8 h-8 sm:w-9 sm:h-9 rounded-xl sm:rounded-2xl bg-white/80 dark:bg-white/10 hover:bg-white dark:hover:bg-white/20 border border-slate-200/80 dark:border-white/15 flex items-center justify-center text-slate-700 dark:text-slate-200 shadow-sm transition active:scale-95 shrink-0"
           title="Buka Menu & Halaman"
         >
-          <Menu className="w-5 h-5" />
+          <Menu className="w-4 h-4 sm:w-5 sm:h-5" />
         </button>
 
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <h1 className="text-base sm:text-lg font-black tracking-tight text-slate-900 dark:text-white truncate">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <h1 className="text-sm sm:text-lg font-black tracking-tight text-slate-900 dark:text-white truncate">
               {pageInfo.title}
             </h1>
             <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-300 border border-blue-400/20">
               Live
             </span>
           </div>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate hidden xs:block">
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate hidden md:block">
             {pageInfo.subtitle}
           </p>
         </div>
       </div>
 
       {/* Center / Right Controls */}
-      <div className="flex items-center gap-2 shrink-0">
-        {/* Month Selector Pill */}
+      <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+        {/* Month Selector Pill (Visible on tablet/desktop to avoid mobile redundancy with GoogleSheetMonthTabBar) */}
         {availableSheets.length > 0 && onSelectMonth ? (
-          <div className="relative flex items-center">
+          <div className="relative hidden md:flex items-center">
             <div className="flex items-center gap-1 px-3 py-1.5 rounded-2xl bg-slate-100/80 dark:bg-white/10 border border-slate-200 dark:border-white/15 text-xs font-bold text-slate-800 dark:text-slate-100 shadow-sm">
               <Calendar className="w-3.5 h-3.5 text-blue-500 shrink-0" />
               <select
@@ -144,7 +144,7 @@ export const LiquidHeader: React.FC<LiquidHeaderProps> = ({
             </div>
           </div>
         ) : (
-          <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-slate-100 dark:bg-white/10 text-xs font-bold text-slate-700 dark:text-slate-200">
+          <div className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-slate-100 dark:bg-white/10 text-xs font-bold text-slate-700 dark:text-slate-200">
             <Calendar className="w-3.5 h-3.5 text-blue-500" />
             <span>{currentSheetName}</span>
           </div>
@@ -166,22 +166,22 @@ export const LiquidHeader: React.FC<LiquidHeaderProps> = ({
           </button>
         )}
 
-        {/* + Transaksi Liquid Glass Button (The Hero Liquid Glass CTA from Image 2 & 4) */}
+        {/* + Transaksi Liquid Glass Button */}
         <button
           onClick={() => {
             triggerHaptic('medium');
             onNavigateToCashflow();
           }}
-          className="relative inline-flex items-center gap-1.5 px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-full text-xs sm:text-sm font-bold text-white shadow-lg transition-all duration-300 active:scale-95 group overflow-hidden"
+          className="relative inline-flex items-center gap-1 sm:gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 rounded-full text-xs sm:text-sm font-bold text-white shadow-md transition-all duration-200 active:scale-95 group overflow-hidden shrink-0"
           style={{
             background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.95) 0%, rgba(147, 51, 234, 0.95) 100%)',
-            boxShadow: '0 8px 24px -4px rgba(99, 102, 241, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.8)',
+            boxShadow: '0 4px 14px -2px rgba(99, 102, 241, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.8)',
             border: '1px solid rgba(255, 255, 255, 0.4)'
           }}
         >
           {/* Subtle liquid glass specular highlight */}
           <div className="absolute top-0 inset-x-0 h-[1.5px] bg-white/70 pointer-events-none" />
-          <Plus className="w-4 h-4 transition-transform duration-200 group-hover:rotate-90" />
+          <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4 transition-transform duration-200 group-hover:rotate-90" />
           <span>Tambah</span>
         </button>
 
@@ -191,10 +191,10 @@ export const LiquidHeader: React.FC<LiquidHeaderProps> = ({
             triggerHaptic('light');
             onOpenMenuPopup();
           }}
-          className="w-8 h-8 sm:w-9 sm:h-9 rounded-2xl bg-white/70 dark:bg-white/10 hover:bg-white dark:hover:bg-white/20 border border-slate-200 dark:border-white/15 flex items-center justify-center text-slate-700 dark:text-slate-200 shadow-sm transition active:scale-95"
+          className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl sm:rounded-2xl bg-white/70 dark:bg-white/10 hover:bg-white dark:hover:bg-white/20 border border-slate-200 dark:border-white/15 flex items-center justify-center text-slate-700 dark:text-slate-200 shadow-sm transition active:scale-95 shrink-0"
           title="Buka Menu Cepat & Navigasi"
         >
-          <Sliders className="w-4 h-4" />
+          <Sliders className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
         </button>
       </div>
     </header>

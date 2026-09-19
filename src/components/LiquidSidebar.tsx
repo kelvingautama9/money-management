@@ -193,19 +193,7 @@ export const LiquidSidebar: React.FC<LiquidSidebarProps> = ({
         <div className="shrink-0 p-4 pb-3 border-b border-white/10 dark:border-white/10">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3 min-w-0">
-              {/* Glossy Liquid Glass Icon Badge */}
-              <div
-                className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 shadow-lg relative overflow-hidden transition-transform duration-300 hover:scale-105"
-                style={{
-                  background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.9) 0%, rgba(147, 51, 234, 0.9) 100%)',
-                  boxShadow: '0 8px 24px -4px rgba(99, 102, 241, 0.4), inset 0 1.5px 1px rgba(255, 255, 255, 0.8)'
-                }}
-              >
-                <div className="absolute top-0 inset-x-0 h-[1.5px] bg-white/70" />
-                <Sparkles className="w-5 h-5 text-white drop-shadow" />
-              </div>
-
-              {(!collapsed || inMobileDrawer) && (
+              {(!collapsed || inMobileDrawer) ? (
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
                     <h2 className="text-sm font-extrabold tracking-tight truncate text-slate-900 dark:text-white">
@@ -219,6 +207,10 @@ export const LiquidSidebar: React.FC<LiquidSidebarProps> = ({
                     <span className={`w-1.5 h-1.5 rounded-full ${user ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'}`} />
                     {user ? 'Cloud Sheets Active' : 'Offline / Standalone'}
                   </p>
+                </div>
+              ) : (
+                <div className="w-8 h-8 rounded-xl bg-blue-500/15 border border-blue-400/30 flex items-center justify-center text-xs font-black text-blue-600 dark:text-blue-300 shrink-0">
+                  KF
                 </div>
               )}
             </div>

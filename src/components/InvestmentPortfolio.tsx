@@ -244,24 +244,24 @@ export const InvestmentPortfolio: React.FC<InvestmentPortfolioProps> = ({
         </div>
 
         {/* Total Valuasi Portofolio Hero Banner */}
-        <div className="my-5 p-4 sm:p-5 rounded-2xl sm:rounded-3xl bg-gradient-to-r from-sky-950/40 via-blue-950/25 to-indigo-950/40 border border-sky-500/25 relative overflow-hidden">
+        <div className="my-5 p-4 sm:p-5 rounded-2xl sm:rounded-3xl bg-gradient-to-r from-sky-500/10 via-blue-500/10 to-indigo-500/10 dark:from-sky-950/40 dark:via-blue-950/25 dark:to-indigo-950/40 border border-sky-400/30 dark:border-sky-500/25 relative overflow-hidden">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 relative z-10">
             <div>
-              <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-sky-300 block mb-1">
+              <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-sky-600 dark:text-sky-300 block mb-1">
                 Total Valuasi Portofolio
               </span>
               <div className="flex flex-wrap items-baseline gap-2 sm:gap-3">
-                <span className="text-2xl sm:text-3xl font-black text-white font-mono tracking-tight">
+                <span className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white font-mono tracking-tight">
                   {formatRupiah(totalCurrentInvestment)}
                 </span>
-                <span className="text-[11px] font-bold text-emerald-400 bg-emerald-500/15 px-2.5 py-0.5 rounded-full border border-emerald-500/30 inline-flex items-center gap-1">
+                <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/15 px-2.5 py-0.5 rounded-full border border-emerald-500/30 inline-flex items-center gap-1">
                   +{formatRupiah(assets.reduce((sum, a) => sum + (a.depositWd || 0), 0))} DCA
                 </span>
               </div>
             </div>
 
-            <div className="flex items-center gap-2 text-xs text-slate-400">
-              <span className="px-2.5 py-1 rounded-xl bg-white/5 border border-white/10 text-slate-300 font-medium text-[11px]">
+            <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+              <span className="px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-300 font-medium text-[11px]">
                 {assets.length} Broker / Aset Terdaftar
               </span>
             </div>
@@ -271,8 +271,8 @@ export const InvestmentPortfolio: React.FC<InvestmentPortfolioProps> = ({
         {/* Compact Broker & Asset Cards (Optimized 2-column mobile grid) */}
         <div className="space-y-2 mb-6">
           <div className="flex items-center justify-between px-1">
-            <span className="text-xs font-bold text-slate-300">Daftar Broker & Aset Investasi</span>
-            <span className="text-[10px] text-slate-400 font-medium">Alokasi Total: 100%</span>
+            <span className="text-xs font-bold text-slate-800 dark:text-slate-300">Daftar Broker & Aset Investasi</span>
+            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Alokasi Total: 100%</span>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-3">
