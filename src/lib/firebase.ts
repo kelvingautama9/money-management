@@ -25,6 +25,65 @@ provider.setCustomParameters({
 
 const TOKEN_STORAGE_KEY = 'kelvin_financial_google_access_token';
 const TOKEN_EXPIRY_KEY = 'kelvin_financial_google_token_expiry';
+const USER_STORAGE_KEY = 'kelvin_financial_active_user';
+
+export interface PersistedUser {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  photoURL: string | null;
+  isDevMode?: boolean;
+}
+
+// Helper to save user persistently in localStorage
+export const savePersistedUser = (user: User | PersistedUser) => {
+  try {
+    const data: PersistedUser = {
+      uid: user.uid,
+      email: user.email,
+      displayName: user.displayName,
+      photoURL: user.photoURL,
+      isDevMode: (user as any).isDevMode === true
+    };
+    localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(data));
+  } catch (e) {
+    console.warn('Failed to save user session to localStorage:', e);
+  }
+};
+
+// Helper to get persisted user
+export const getPersistedUser = (): PersistedUser | null => {
+  try {
+    const raw = localStorage.getItem(USER_STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch (e) {
+    return null;
+  }
+};
+
+// Helper to purge all confidential financial caches upon logout
+export const clearAllUserSessionAndCaches = () => {
+  try {
+    localStorage.removeItem(USER_STORAGE_KEY);
+    localStorage.removeItem(TOKEN_STORAGE_KEY);
+    localStorage.removeItem(TOKEN_EXPIRY_KEY);
+    localStorage.removeItem('kelvin_financial_sheet_summaries');
+    localStorage.removeItem('kelvin_financial_available_sheets');
+
+    // Remove all cached transaction rows and custom assets to ensure 100% privacy
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && (k.startsWith('kelvin_financial_txs_') || k.startsWith('kelvin_financial_custom_'))) {
+        keysToRemove.push(k);
+      }
+    }
+    keysToRemove.forEach((k) => localStorage.removeItem(k));
+  } catch (e) {
+    console.warn('Error clearing cached user sessions:', e);
+  }
+};
 
 // Helper to save token persistently in localStorage
 export const saveTokenToStorage = (token: string, expiresInSeconds = 3600) => {
@@ -94,12 +153,13 @@ export const initAuth = (
   // 2. Listen to ongoing auth state
   return onAuthStateChanged(auth, async (user: User | null) => {
     if (user) {
+      savePersistedUser(user);
       const token = cachedAccessToken || getStoredToken();
       if (token) {
         cachedAccessToken = token;
         if (onAuthSuccess) onAuthSuccess(user, token);
       } else {
-        // User is still authenticated with Firebase! Never drop user to null
+        // User is still authenticated with Firebase!
         if (onAuthSuccess) onAuthSuccess(user, '');
       }
     } else {
@@ -129,6 +189,7 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string 
     }
     cachedAccessToken = credential.accessToken;
     saveTokenToStorage(credential.accessToken);
+    savePersistedUser(result.user);
     return { user: result.user, accessToken: cachedAccessToken };
   } catch (error: any) {
     // If browser popup blocker intercepts (common in Firefox / Safari / Mobile)
@@ -191,11 +252,15 @@ export const setCachedAccessToken = (token: string | null) => {
 };
 
 /**
- * Sign out and clear cached credentials.
+ * Sign out and clear all cached credentials, tokens, and data.
  */
 export const logout = async () => {
-  await signOut(auth);
+  try {
+    await signOut(auth);
+  } catch (e) {
+    console.warn('SignOut error:', e);
+  }
   cachedAccessToken = null;
-  clearStoredToken();
+  clearAllUserSessionAndCaches();
 };
 

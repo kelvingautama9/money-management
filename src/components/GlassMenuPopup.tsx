@@ -336,11 +336,15 @@ export const GlassMenuPopup: React.FC<GlassMenuPopupProps> = ({
                     </button>
 
                     <button
-                      onClick={() => onLogout?.()}
-                      className="px-2.5 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/30 text-xs font-medium text-rose-300 transition"
-                      title="Keluar dari akun Google"
+                      onClick={() => {
+                        onClose();
+                        onLogout?.();
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/30 text-xs font-bold text-rose-300 transition flex items-center gap-1.5 active:scale-95"
+                      title="Keluar dari akun Google dan amankan data (angka otomatis menjadi 0)"
                     >
                       <LogOut className="w-3.5 h-3.5" />
+                      <span>Keluar</span>
                     </button>
                   </>
                 )}

@@ -523,6 +523,35 @@ export async function clearRowInSheet(
 }
 
 /**
+ * Executes a batch update to Google Sheets cells.
+ */
+export async function batchUpdateSheetValues(
+  spreadsheetId: string,
+  data: Array<{ range: string; values: any[][] }>,
+  accessToken: string
+) {
+  const res = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values:batchUpdate`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        valueInputOption: 'USER_ENTERED',
+        data
+      })
+    }
+  );
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.error?.message || 'Gagal batch update Google Sheets');
+  }
+  return await res.json();
+}
+
+/**
  * Creates a brand new Google Spreadsheet with the exact template headers & formatting.
  */
 export async function createNewProjectSpreadsheet(
@@ -629,3 +658,169 @@ export async function getSpreadsheetSheetTitles(
     return [];
   }
 }
+
+/**
+ * Updates a single cell or small range directly in Google Sheets.
+ */
+export async function updateCellInSheet(
+  spreadsheetId: string,
+  sheetName: string,
+  cellA1: string,
+  value: string | number,
+  accessToken: string
+) {
+  const range = encodeURIComponent(formatSheetRange(sheetName, cellA1));
+  const res = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}?valueInputOption=USER_ENTERED`,
+    {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ values: [[value]] })
+    }
+  );
+
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData?.error?.message || `Gagal memperbarui sel ${cellA1}`);
+  }
+  return await res.json();
+}
+
+/**
+ * Synchronizes account/wallet rename across Google Sheets transaction rows and account tables.
+ */
+export async function syncRenameAccountInSheet(
+  spreadsheetId: string,
+  sheetName: string,
+  oldAccountName: string,
+  newAccountName: string,
+  accessToken: string
+): Promise<number> {
+  let updatedCount = 0;
+  const targetOld = oldAccountName.trim().toLowerCase();
+  const newName = newAccountName.trim();
+
+  // 1. Scan transactions A1:F200
+  try {
+    const rows = await fetchSheetValues(spreadsheetId, formatSheetRange(sheetName, 'A1:F200'), accessToken);
+    if (rows && rows.length > 0) {
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        if (!row || row.length < 3) continue;
+        const currentAcc = (row[2] || '').toString().trim().toLowerCase();
+        if (currentAcc === targetOld) {
+          const rowNumber = i + 1;
+          await updateCellInSheet(spreadsheetId, sheetName, `C${rowNumber}`, newName, accessToken);
+          updatedCount++;
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('Error syncing renamed account in transactions column C:', e);
+  }
+
+  // 2. Also scan summary/account columns H1:N50
+  try {
+    const sideGrid = await fetchSheetValues(spreadsheetId, formatSheetRange(sheetName, 'H1:N50'), accessToken);
+    if (sideGrid && sideGrid.length > 0) {
+      const colLetters = ['H', 'I', 'J', 'K', 'L', 'M', 'N'];
+      for (let r = 0; r < sideGrid.length; r++) {
+        const row = sideGrid[r];
+        if (!row) continue;
+        for (let c = 0; c < row.length; c++) {
+          const cellVal = (row[c] || '').toString().trim().toLowerCase();
+          if (cellVal === targetOld) {
+            const cellRef = `${colLetters[c]}${r + 1}`;
+            await updateCellInSheet(spreadsheetId, sheetName, cellRef, newName, accessToken);
+            updatedCount++;
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('Error checking side accounts grid during rename:', e);
+  }
+
+  return updatedCount;
+}
+
+/**
+ * Adds a new wallet/account to Google Sheets with its initial balance row.
+ */
+export async function syncAddAccountToSheet(
+  spreadsheetId: string,
+  sheetName: string,
+  accountName: string,
+  initialBalance: number = 0,
+  accessToken: string
+) {
+  const newTx: Omit<Transaction, 'id'> = {
+    bulan: sheetName,
+    kategori: 'Saldo Awal',
+    akun: accountName.trim(),
+    tipe: 'Saldo Bulan Lalu',
+    jumlah: Math.round(Number(initialBalance) || 0),
+    catatan: `Saldo Awal Rekening ${accountName.trim()}`
+  };
+
+  return await appendRowToSheet(spreadsheetId, sheetName, newTx, accessToken);
+}
+
+/**
+ * Synchronizes new or updated investment asset to Google Sheets.
+ */
+export async function syncAssetToSheet(
+  spreadsheetId: string,
+  sheetName: string,
+  oldAssetName: string,
+  updatedAsset: { nama: string; nilaiAkhirBulan: number; depositWd?: number; alokasiPercent?: number; warna?: string },
+  accessToken: string
+): Promise<{ updated: boolean; rowIndex?: number }> {
+  const targetOld = oldAssetName.trim().toLowerCase();
+  const safeName = updatedAsset.nama.trim();
+  const safeAmount = Math.round(Number(updatedAsset.nilaiAkhirBulan) || 0);
+
+  // 1. Look for existing row in A1:F200
+  try {
+    const rows = await fetchSheetValues(spreadsheetId, formatSheetRange(sheetName, 'A1:F200'), accessToken);
+    if (rows && rows.length > 0) {
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        if (!row) continue;
+        const colKat = (row[1] || '').toString().trim().toLowerCase();
+        const colAcc = (row[2] || '').toString().trim().toLowerCase();
+        const colNote = (row[5] || '').toString().trim().toLowerCase();
+
+        const isMatch =
+          colAcc === targetOld ||
+          (colKat.includes('investasi') && (colAcc === targetOld || colNote.includes(targetOld)));
+
+        if (isMatch) {
+          const rowNumber = i + 1;
+          await updateCellInSheet(spreadsheetId, sheetName, `C${rowNumber}`, safeName, accessToken);
+          await updateCellInSheet(spreadsheetId, sheetName, `E${rowNumber}`, safeAmount, accessToken);
+          return { updated: true, rowIndex: rowNumber };
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('Error searching for existing investment row:', e);
+  }
+
+  // 2. If not found in rows, append as a new investment row so Google Sheet holds this asset!
+  const newTx: Omit<Transaction, 'id'> = {
+    bulan: sheetName,
+    kategori: 'Investasi',
+    akun: safeName,
+    tipe: 'Saldo Bulan Lalu',
+    jumlah: safeAmount,
+    catatan: `Aset Investasi: ${safeName}`
+  };
+
+  const appendRes = await appendRowToSheet(spreadsheetId, sheetName, newTx, accessToken);
+  return { updated: true, rowIndex: appendRes?.rowIndex };
+}
+

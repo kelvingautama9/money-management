@@ -18,12 +18,16 @@ import {
   SheetSummary,
   ThemeMode
 } from './types';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   initAuth,
   googleSignIn,
   logout,
   getAccessToken,
-  setCachedAccessToken
+  setCachedAccessToken,
+  getPersistedUser,
+  savePersistedUser,
+  PersistedUser
 } from './lib/firebase';
 import {
   extractSpreadsheetId,
@@ -35,11 +39,16 @@ import {
   formatRupiah,
   getSpreadsheetSheetTitles,
   formatSheetRange,
-  parseSheetGridData
+  parseSheetGridData,
+  syncRenameAccountInSheet,
+  syncAddAccountToSheet,
+  syncAssetToSheet
 } from './lib/sheetsApi';
 import { triggerHaptic } from './lib/haptics';
 
 // Components
+import { LoginPage } from './components/LoginPage';
+import { SyncStatusHeaderBadge } from './components/SyncStatusHeaderBadge';
 import { NavigationTabBar, ActivePage } from './components/NavigationTabBar';
 import { GoogleSheetMonthTabBar } from './components/GoogleSheetMonthTabBar';
 import { CashflowInputPage } from './components/CashflowInputPage';
@@ -76,7 +85,8 @@ import {
   Layers,
   PieChart,
   RefreshCw,
-  Menu
+  Menu,
+  LogOut
 } from 'lucide-react';
 
 export default function App() {
@@ -101,7 +111,7 @@ export default function App() {
   const [activePage, setActivePage] = useState<ActivePage>('summary');
 
   // --- Auth & Google Sheets State ---
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | PersistedUser | null>(() => getPersistedUser());
   const [spreadsheetId, setSpreadsheetId] = useState<string>(() => {
     return localStorage.getItem('kelvin_financial_sheet_id') || '1x_SheetsID_KelvinGautama';
   });
@@ -109,6 +119,10 @@ export default function App() {
     return localStorage.getItem('kelvin_financial_sheet_name') || 'SEPTEMBER';
   });
   const [availableSheets, setAvailableSheets] = useState<string[]>(() => {
+    const persisted = getPersistedUser();
+    if (!persisted || persisted.isDevMode) {
+      return [localStorage.getItem('kelvin_financial_sheet_name') || 'SEPTEMBER'];
+    }
     try {
       const saved = localStorage.getItem('kelvin_financial_available_sheets');
       if (saved) {
@@ -119,11 +133,15 @@ export default function App() {
     return DEFAULT_MONTH_SHEETS;
   });
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
-  const [lastSynced, setLastSynced] = useState<Date | null>(null);
+  const [lastSynced, setLastSynced] = useState<Date | null>(() => {
+    return getPersistedUser() ? new Date() : null;
+  });
   const [syncNotice, setSyncNotice] = useState<string | null>(null);
 
-  // --- Data State ---
+  // --- Data State (Zero / Empty when not logged in or in Dev Mode) ---
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
+    const persisted = getPersistedUser();
+    if (!persisted || persisted.isDevMode) return [];
     const active = localStorage.getItem('kelvin_financial_sheet_name') || 'SEPTEMBER';
     try {
       const cached = localStorage.getItem(`kelvin_financial_txs_${active}`);
@@ -139,6 +157,8 @@ export default function App() {
     );
   });
   const [assets, setAssets] = useState<InvestmentAsset[]>(() => {
+    const persisted = getPersistedUser();
+    if (!persisted || persisted.isDevMode) return [];
     try {
       const saved = localStorage.getItem('kelvin_financial_custom_assets');
       if (saved) {
@@ -148,9 +168,26 @@ export default function App() {
     } catch (e) {}
     return INITIAL_INVESTMENT_ASSETS;
   });
-  const [history, setHistory] = useState<InvestmentHistory[]>(INITIAL_INVESTMENT_HISTORY);
+  const [history, setHistory] = useState<InvestmentHistory[]>(() => {
+    const persisted = getPersistedUser();
+    if (!persisted || persisted.isDevMode) return [];
+    return INITIAL_INVESTMENT_HISTORY;
+  });
 
   const [customBudgets, setCustomBudgets] = useState<BudgetCategory[]>(() => {
+    const persisted = getPersistedUser();
+    if (!persisted || persisted.isDevMode) {
+      return INITIAL_BUDGETS.map((b) => ({
+        ...b,
+        saldoAwal: 0,
+        budgeting: 0,
+        targetBulanan: 0,
+        actualSpend: 0,
+        totalSaldo: 0,
+        sisa: 0,
+        keterangan: '-'
+      }));
+    }
     try {
       const saved = localStorage.getItem('kelvin_financial_custom_budgets');
       if (saved) {
@@ -184,6 +221,8 @@ export default function App() {
 
   // Precalculated summary values from Google Sheets (columns H..N) or monthly defaults
   const [sheetSummaries, setSheetSummaries] = useState<Record<string, SheetSummary>>(() => {
+    const persisted = getPersistedUser();
+    if (!persisted || persisted.isDevMode) return {};
     try {
       const saved = localStorage.getItem('kelvin_financial_sheet_summaries');
       if (saved) {
@@ -194,7 +233,11 @@ export default function App() {
     return INITIAL_SUMMARY_BY_MONTH as unknown as Record<string, SheetSummary>;
   });
 
+  const isDevMode = user?.isDevMode === true;
+  const isZeroState = !user || isDevMode;
+
   const activeSummary = useMemo<SheetSummary | undefined>(() => {
+    if (isZeroState) return undefined;
     return (
       sheetSummaries[sheetName] ||
       sheetSummaries[sheetName.toUpperCase()] ||
@@ -202,7 +245,7 @@ export default function App() {
       (INITIAL_SUMMARY_BY_MONTH as any)[sheetName.toUpperCase()] ||
       (INITIAL_SUMMARY_BY_MONTH as any)[sheetName]
     );
-  }, [sheetSummaries, sheetName]);
+  }, [sheetSummaries, sheetName, isZeroState]);
 
   // Initialize Firebase Auth listener
   useEffect(() => {
@@ -214,8 +257,11 @@ export default function App() {
         }
       },
       () => {
-        setUser(null);
-        setCachedAccessToken(null);
+        const persisted = getPersistedUser();
+        if (!persisted) {
+          setUser(null);
+          setCachedAccessToken(null);
+        }
       }
     );
     return () => unsubscribe();
@@ -295,23 +341,34 @@ export default function App() {
     setGlassSettings(prev => ({ ...prev, themeMode: mode }));
   };
 
-  // --- Financial Computations Engine ---
+  // --- Financial Computations Engine (Guaranteed 0 / - when logged out or in Dev Mode) ---
   // 1. Total Income
   const totalPemasukan = useMemo(() => {
+    if (isZeroState) return 0;
     return transactions
       .filter((t) => t.tipe === 'Income')
       .reduce((sum, t) => sum + t.jumlah, 0);
-  }, [transactions]);
+  }, [transactions, isZeroState]);
 
   // 2. Total Direct Expenses (pengeluaran murni non-transfer)
   const totalPengeluaran = useMemo(() => {
+    if (isZeroState) return 0;
     return transactions
       .filter((t) => t.tipe === 'Expense')
       .reduce((sum, t) => sum + t.jumlah, 0);
-  }, [transactions]);
+  }, [transactions, isZeroState]);
 
   // 3. Dynamic Budget Status Calculation
   const budgets: BudgetCategory[] = useMemo(() => {
+    if (isZeroState) {
+      return customBudgets.map((initBudget) => ({
+        ...initBudget,
+        actualSpend: 0,
+        totalSaldo: 0,
+        sisa: 0,
+        keterangan: '-'
+      }));
+    }
     return customBudgets.map((initBudget) => {
       const budgetLower = initBudget.nama.toLowerCase();
       const relevantSpend = transactions
@@ -339,11 +396,18 @@ export default function App() {
         keterangan: sisa > 0 ? `Sisa: ${formatRupiah(sisa)}` : 'Anggaran Terserap'
       };
     });
-  }, [customBudgets, transactions]);
+  }, [customBudgets, transactions, isZeroState]);
 
   // 4. Dynamic Account Balances (Calculated from transactions and Google Sheet summary)
   const accounts: AccountBalance[] = useMemo(() => {
     const accountNames = customAccountsList;
+    if (isZeroState) {
+      return accountNames.map((accName) => ({
+        nama: accName,
+        totalSaldo: 0,
+        spendBulanIniPercent: 0
+      }));
+    }
 
     const defaultBaseBalances: Record<string, number> = {
       'Bank BCA': 8870,
@@ -465,10 +529,18 @@ export default function App() {
         spendBulanIniPercent: spendPercent
       };
     });
-  }, [transactions, activeSummary, sheetName]);
+  }, [transactions, activeSummary, sheetName, user, customAccountsList]);
 
   // 5. Emergency Fund Metrics (derived from active month summary or accounts)
   const emergencyFund: EmergencyFund = useMemo(() => {
+    if (isZeroState) {
+      return {
+        current: 0,
+        target: 12000000,
+        kekurangan: -12000000,
+        persentase: 0
+      };
+    }
     if (activeSummary?.emergencyFund && activeSummary.emergencyFund.current) {
       const curr = activeSummary.emergencyFund.current;
       const tgt = activeSummary.emergencyFund.target || 12000000;
@@ -488,11 +560,12 @@ export default function App() {
       kekurangan: bluSavings - target,
       persentase: Number(((bluSavings / target) * 100).toFixed(1))
     };
-  }, [activeSummary, accounts]);
+  }, [activeSummary, accounts, isZeroState]);
 
   // 6. Aggregate Net Worth & Cash Standby (Synchronized across Summary and Accounts)
   // Total of all non-investment liquid accounts (Cash, Bank BCA, Seabank, Blu, Allo, Jago)
   const cashStandbyDanaDarurat = useMemo(() => {
+    if (isZeroState) return 0;
     if (activeSummary?.cashStandbyDanaDarurat && activeSummary.cashStandbyDanaDarurat !== 0) {
       return activeSummary.cashStandbyDanaDarurat;
     }
@@ -507,10 +580,11 @@ export default function App() {
     return accounts
       .filter((acc) => !acc.nama.toLowerCase().includes('investasi'))
       .reduce((sum, acc) => sum + acc.totalSaldo, 0);
-  }, [accounts, activeSummary, sheetName]);
+  }, [accounts, activeSummary, sheetName, isZeroState]);
 
   // Current investment portfolio value from active summary or account
   const totalInvestment = useMemo(() => {
+    if (isZeroState) return 0;
     if (activeSummary?.totalInvestment && activeSummary.totalInvestment > 0) {
       return activeSummary.totalInvestment;
     }
@@ -532,10 +606,11 @@ export default function App() {
     }
     const fromAssets = assets.reduce((sum, a) => sum + a.nilaiAkhirBulan, 0);
     return fromAssets > 0 ? fromAssets : 51705076;
-  }, [accounts, activeSummary, sheetName, history, assets]);
+  }, [accounts, activeSummary, sheetName, history, assets, isZeroState]);
 
   // Total Net Worth (Kekayaan Bersih): Sum of all accounts and investments, reacts directly to selected tab
   const totalAset = useMemo(() => {
+    if (isZeroState) return 0;
     if (activeSummary?.totalAset && typeof activeSummary.totalAset === 'number' && activeSummary.totalAset !== 0) {
       return activeSummary.totalAset;
     }
@@ -553,7 +628,7 @@ export default function App() {
       return historyItem.totalNetWorth;
     }
     return cashStandbyDanaDarurat + totalInvestment;
-  }, [activeSummary, sheetName, history, cashStandbyDanaDarurat, totalInvestment]);
+  }, [activeSummary, sheetName, history, cashStandbyDanaDarurat, totalInvestment, isZeroState]);
 
   const sisaSaldoIncome = totalPemasukan - totalPengeluaran;
 
@@ -574,9 +649,38 @@ export default function App() {
       setSyncNotice('Menghubungkan ke Google...');
       const res = await googleSignIn();
       if (res) {
-        setUser(res.user);
-        setSyncNotice(`Tersambung sebagai ${res.user.email} dengan akses Google Sheets & Drive.`);
+        const loggedUser: PersistedUser = {
+          uid: res.user.uid,
+          email: res.user.email,
+          displayName: res.user.displayName,
+          photoURL: res.user.photoURL,
+          isDevMode: false
+        };
+        setUser(loggedUser);
+        savePersistedUser(loggedUser);
+        setSyncNotice(`Tersambung sebagai ${res.user.email} dengan akses Google Sheets.`);
         triggerHaptic('success');
+        setLastSynced(new Date());
+
+        const token = await getAccessToken();
+        const cleanId = extractSpreadsheetId(spreadsheetId);
+        if (token && cleanId && !cleanId.startsWith('1x_SheetsID')) {
+          try {
+            const detected = await getSpreadsheetSheetTitles(cleanId, token);
+            if (detected && detected.length > 0) {
+              setAvailableSheets(detected);
+              try {
+                localStorage.setItem('kelvin_financial_available_sheets', JSON.stringify(detected));
+              } catch (e) {}
+              if (!detected.includes(sheetName)) {
+                setSheetName(detected[0]);
+              }
+            }
+          } catch (e) {
+            console.warn('Tab discovery on login:', e);
+          }
+          await handleSyncFromSheets();
+        }
       }
     } catch (err: any) {
       console.error('Sign-in failure:', err);
@@ -592,10 +696,39 @@ export default function App() {
     }
   };
 
+  const handlePinVerify = async (pin: string) => {
+    if (pin === '0000') {
+      const devUser: PersistedUser = {
+        uid: 'dev-mode-user',
+        email: 'dev@preview.local',
+        displayName: 'Developer Mode',
+        photoURL: null,
+        isDevMode: true
+      };
+      savePersistedUser(devUser);
+      setUser(devUser);
+      setTransactions([]);
+      setSheetSummaries({});
+      setAssets([]);
+      setAvailableSheets([sheetName || 'PREVIEW']);
+      triggerHaptic('success');
+      setLastSynced(new Date());
+      setSyncNotice('Mode Developer aktif (Kode 0000): Semua angka diset Rp 0 untuk inspeksi antarmuka.');
+      return true;
+    }
+    return false;
+  };
+
   const handleGoogleLogout = async () => {
     await logout();
     setUser(null);
-    setSyncNotice('Telah keluar dari akun Google.');
+    setTransactions([]);
+    setSheetSummaries({});
+    setAssets([]);
+    setAvailableSheets([sheetName || 'SEPTEMBER']);
+    setLastSynced(null);
+    setSyncNotice('Telah keluar dari akun. Semua data tersimpan telah dinolkan untuk privasi.');
+    triggerHaptic('medium');
   };
 
   const handleSaveProjectConfig = (
@@ -983,22 +1116,60 @@ export default function App() {
   };
 
   // --- Asset CRUD Handlers ---
-  const handleAddAsset = (newAsset: InvestmentAsset) => {
+  const handleAddAsset = async (newAsset: InvestmentAsset) => {
     const next = [...assets, newAsset];
     setAssets(next);
     try {
       localStorage.setItem('kelvin_financial_custom_assets', JSON.stringify(next));
     } catch (e) {}
-    setSyncNotice(`Aset "${newAsset.nama}" berhasil ditambahkan ke portofolio.`);
+    setSyncNotice(`Aset "${newAsset.nama}" tersimpan lokal di portofolio.`);
+
+    // Live Google Sheets synchronization for investment assets
+    const token = await getAccessToken();
+    const cleanId = extractSpreadsheetId(spreadsheetId);
+    if (token && cleanId && !cleanId.startsWith('1x_SheetsID')) {
+      try {
+        await syncAssetToSheet(cleanId, sheetName, '', newAsset, token);
+        setLastSynced(new Date());
+        setSyncNotice(`Aset investasi "${newAsset.nama}" berhasil tersingkron ke Google Sheet tab ${sheetName}.`);
+      } catch (err: any) {
+        console.warn('Gagal sinkron aset baru ke Google Sheets:', err);
+      }
+    }
   };
 
-  const handleEditAsset = (oldName: string, updatedAsset: InvestmentAsset) => {
+  const handleEditAsset = async (oldName: string, updatedAsset: InvestmentAsset) => {
     const next = assets.map((a) => (a.nama === oldName ? updatedAsset : a));
     setAssets(next);
     try {
       localStorage.setItem('kelvin_financial_custom_assets', JSON.stringify(next));
     } catch (e) {}
+
+    // Update transactions matching old asset name
+    if (oldName !== updatedAsset.nama) {
+      setTransactions((prev) => {
+        const updatedTxs = prev.map((t) => (t.akun === oldName ? { ...t, akun: updatedAsset.nama } : t));
+        try {
+          localStorage.setItem(`kelvin_financial_txs_${sheetName}`, JSON.stringify(updatedTxs));
+        } catch (e) {}
+        return updatedTxs;
+      });
+    }
+
     setSyncNotice(`Aset "${updatedAsset.nama}" berhasil diperbarui.`);
+
+    // Live Google Sheets synchronization for asset update
+    const token = await getAccessToken();
+    const cleanId = extractSpreadsheetId(spreadsheetId);
+    if (token && cleanId && !cleanId.startsWith('1x_SheetsID')) {
+      try {
+        await syncAssetToSheet(cleanId, sheetName, oldName, updatedAsset, token);
+        setLastSynced(new Date());
+        setSyncNotice(`Perubahan aset "${updatedAsset.nama}" (${formatRupiah(updatedAsset.nilaiAkhirBulan)}) berhasil tersingkron ke Google Sheets.`);
+      } catch (err: any) {
+        console.warn('Gagal sinkron edit aset ke Google Sheets:', err);
+      }
+    }
   };
 
   const handleDeleteAsset = (name: string) => {
@@ -1011,24 +1182,62 @@ export default function App() {
   };
 
   // --- Account CRUD Handlers ---
-  const handleAddAccount = (account: AccountBalance) => {
+  const handleAddAccount = async (account: AccountBalance) => {
     if (!customAccountsList.includes(account.nama)) {
       const next = [...customAccountsList, account.nama];
       setCustomAccountsList(next);
       try {
         localStorage.setItem('kelvin_financial_accounts_list', JSON.stringify(next));
       } catch (e) {}
-      setSyncNotice(`Rekening "${account.nama}" berhasil ditambahkan.`);
+      setSyncNotice(`Rekening "${account.nama}" tersimpan.`);
+
+      // Live Google Sheets synchronization for newly added account
+      const token = await getAccessToken();
+      const cleanId = extractSpreadsheetId(spreadsheetId);
+      if (token && cleanId && !cleanId.startsWith('1x_SheetsID')) {
+        try {
+          await syncAddAccountToSheet(cleanId, sheetName, account.nama, account.totalSaldo || 0, token);
+          setLastSynced(new Date());
+          setSyncNotice(`Rekening/dompet "${account.nama}" berhasil ditambahkan & tersingkron ke Google Sheet tab ${sheetName}.`);
+        } catch (err: any) {
+          console.warn('Gagal sinkron akun baru ke Google Sheets:', err);
+        }
+      }
     }
   };
 
-  const handleEditAccount = (oldName: string, updated: AccountBalance) => {
+  const handleEditAccount = async (oldName: string, updated: AccountBalance) => {
     const next = customAccountsList.map((a) => (a === oldName ? updated.nama : a));
     setCustomAccountsList(next);
     try {
       localStorage.setItem('kelvin_financial_accounts_list', JSON.stringify(next));
     } catch (e) {}
+
+    // Update transactions matching old account name so balances and history stay in sync
+    if (oldName !== updated.nama) {
+      setTransactions((prev) => {
+        const updatedTxs = prev.map((t) => (t.akun === oldName ? { ...t, akun: updated.nama } : t));
+        try {
+          localStorage.setItem(`kelvin_financial_txs_${sheetName}`, JSON.stringify(updatedTxs));
+        } catch (e) {}
+        return updatedTxs;
+      });
+    }
+
     setSyncNotice(`Rekening "${updated.nama}" berhasil diperbarui.`);
+
+    // Live Google Sheets synchronization: rename account across sheet rows
+    const token = await getAccessToken();
+    const cleanId = extractSpreadsheetId(spreadsheetId);
+    if (token && cleanId && !cleanId.startsWith('1x_SheetsID')) {
+      try {
+        const updatedCells = await syncRenameAccountInSheet(cleanId, sheetName, oldName, updated.nama, token);
+        setLastSynced(new Date());
+        setSyncNotice(`Perubahan nama rekening "${oldName}" ➔ "${updated.nama}" berhasil tersingkron ke Google Sheets (${updatedCells} baris/sel diperbarui).`);
+      } catch (err: any) {
+        console.warn('Gagal sinkron nama akun ke Google Sheets:', err);
+      }
+    }
   };
 
   const handleDeleteAccount = (name: string) => {
@@ -1097,87 +1306,160 @@ export default function App() {
   }, [transactions, sheetName, availableSheets]);
 
   return (
-    <div className={`min-h-screen relative selection:bg-blue-500/30 selection:text-white transition-colors duration-300 ${
-      glassSettings.themeMode === 'light'
-        ? 'bg-[#f8fafc] text-slate-900'
-        : glassSettings.themeMode === 'beige'
-        ? 'bg-[#f5f2eb] text-[#29231c]'
-        : glassSettings.themeMode === 'midnight'
-        ? 'bg-[#000000] text-slate-100'
-        : 'bg-[#060713] text-slate-100'
-    }`}>
-      {/* Atmospheric 3D Liquid Glass Ambient Orbs */}
-      <div className="ambient-glow-1 top-[-100px] left-[-150px]" />
-      <div className="ambient-glow-2 top-[35%] right-[-120px]" />
-      <div className="ambient-glow-3 bottom-[-100px] left-[20%]" />
+    <AnimatePresence mode="wait">
+      {!user ? (
+        <motion.div
+          key="auth-login-gate"
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 1.05, filter: 'blur(10px)' }}
+          transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+          className="w-full min-h-screen"
+        >
+          <LoginPage
+            onLoginWithGoogle={handleGoogleLogin}
+            onVerifyPin={handlePinVerify}
+            isLoggingIn={isSyncing}
+            loginError={syncNotice?.includes('Koneksi Google:') ? syncNotice : null}
+            spreadsheetId={spreadsheetId}
+            sheetName={sheetName}
+            onUpdateSpreadsheetConfig={(id, name) => handleSaveProjectConfig(id, name)}
+            settings={glassSettings}
+            onSelectTheme={handleSelectTheme}
+            onSuccessfulAuthTransition={() => {
+              if (!user) {
+                handlePinVerify('0000');
+              }
+            }}
+          />
+        </motion.div>
+      ) : (
+        <motion.div
+          key="authenticated-dashboard"
+          initial={{ opacity: 0, scale: 0.96, filter: 'blur(8px)' }}
+          animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+          exit={{ opacity: 0, scale: 0.96, filter: 'blur(8px)' }}
+          transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+          className={`min-h-screen relative selection:bg-blue-500/30 selection:text-white transition-colors duration-300 ${
+            glassSettings.themeMode === 'light'
+              ? 'bg-[#f8fafc] text-slate-900'
+              : glassSettings.themeMode === 'beige'
+              ? 'bg-[#f5f2eb] text-[#29231c]'
+              : glassSettings.themeMode === 'midnight'
+              ? 'bg-[#000000] text-slate-100'
+              : 'bg-[#060713] text-slate-100'
+          }`}
+        >
+          {/* Atmospheric 3D Liquid Glass Ambient Orbs */}
+          <div className="ambient-glow-1 top-[-100px] left-[-150px]" />
+          <div className="ambient-glow-2 top-[35%] right-[-120px]" />
+          <div className="ambient-glow-3 bottom-[-100px] left-[20%]" />
 
-      {/* Main Container - Optimized Margins for Screen Real Estate (Ultra Responsive) */}
-      <div className="relative z-20 w-full max-w-[98%] 2xl:max-w-[96%] mx-auto px-2 sm:px-4 lg:px-6 py-4 sm:py-6 space-y-6 min-w-0 overflow-x-clip pb-28 sm:pb-32">
-        {/* Ultra-Clean Modern Apple Top Bar */}
-        <header className="flex items-center justify-between gap-3 py-1">
-          {/* Left: User profile & month */}
-          <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-600 via-indigo-600 to-sky-500 p-0.5 shadow-md shrink-0">
-              <div className="w-full h-full rounded-full bg-[#0d1024] flex items-center justify-center text-sm font-black text-sky-300">
-                {user?.displayName ? user.displayName.charAt(0).toUpperCase() : 'K'}
+          {/* Main Container - Balanced Apple Layout for Desktop & Mobile */}
+          <div className="relative z-20 w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-6 min-w-0 pb-28 sm:pb-32">
+            {/* Dev Mode Banner with Exit Option */}
+            {user?.isDevMode && (
+              <motion.div
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="w-full p-3 sm:px-4 sm:py-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 backdrop-blur-xl flex flex-col sm:flex-row items-center justify-between gap-3 text-amber-200 shadow-lg"
+              >
+                <div className="flex items-center gap-3 text-xs">
+                  <span className="px-2.5 py-1 rounded-full bg-amber-500/25 text-amber-300 font-extrabold text-[10px] tracking-widest uppercase border border-amber-400/40 shrink-0">
+                    DEV MODE (0000)
+                  </span>
+                  <span className="text-slate-200">
+                    Mode pratinjau aktif: Semua angka keuangan diset <strong>Rp 0</strong>. Untuk menghubungkan data Google Sheet riil Anda, silakan keluar dari Dev Mode dan login via Google.
+                  </span>
+                </div>
+                <button
+                  onClick={handleGoogleLogout}
+                  className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs shadow-md transition active:scale-95 shrink-0 flex items-center gap-1.5 cursor-pointer"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>Keluar Dev Mode & Login Google</span>
+                </button>
+              </motion.div>
+            )}
+
+            {/* Ultra-Clean Modern Apple Top Bar */}
+            <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-1">
+              {/* Left: User profile & month */}
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-600 via-indigo-600 to-sky-500 p-0.5 shadow-md shrink-0">
+                  <div className="w-full h-full rounded-full bg-[#0d1024] flex items-center justify-center text-sm font-black text-sky-300">
+                    {user?.displayName ? user.displayName.charAt(0).toUpperCase() : 'K'}
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-sm sm:text-base font-bold tracking-tight">
+                      {user?.displayName ? `Halo, ${user.displayName.split(' ')[0]}` : 'Halo, Kelvin'}
+                    </h2>
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" title="Online" />
+                  </div>
+                  <p className="text-[11px] text-slate-400">
+                    <span className="font-semibold text-slate-200">{formattedSheetMonth}</span>
+                  </p>
+                </div>
               </div>
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-sm sm:text-base font-bold text-white tracking-tight">
-                  {user?.displayName ? `Halo, ${user.displayName.split(' ')[0]}` : 'Halo, Kelvin'}
-                </h2>
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" title="Online" />
+
+              {/* Right: Live Sync Status Badge & Clean Action Buttons */}
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                {/* Prominent Live Google Sheets Sync Status Indicator Badge */}
+                <SyncStatusHeaderBadge
+                  user={user}
+                  spreadsheetId={spreadsheetId}
+                  sheetName={sheetName}
+                  isSyncing={isSyncing}
+                  lastSynced={lastSynced}
+                  txCount={transactions.length}
+                  onSyncNow={handleSyncFromSheets}
+                  settings={glassSettings}
+                  onOpenProjectManager={() => setIsProjectManagerOpen(true)}
+                />
+
+                {/* Quick Sync Button */}
+                <button
+                  onClick={() => {
+                    triggerHaptic('medium');
+                    handleSyncFromSheets();
+                  }}
+                  disabled={isSyncing}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-xs font-semibold text-slate-200 transition active:scale-95 disabled:opacity-50"
+                  title="Sinkronisasi Google Sheets Sekarang"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 text-sky-400 ${isSyncing ? 'animate-spin' : ''}`} />
+                  <span className="hidden md:inline">{isSyncing ? 'Sinkron...' : 'Sync'}</span>
+                </button>
+
+                {/* Laporan Otomatis */}
+                <button
+                  onClick={() => {
+                    triggerHaptic('light');
+                    setIsReportModalOpen(true);
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-xs font-semibold text-slate-200 transition active:scale-95"
+                  title="Laporan Otomatis"
+                >
+                  <FileText className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="hidden md:inline">Laporan</span>
+                </button>
+
+                {/* Popup Menu Button (Semi-Transparent Glass Popup Container) */}
+                <button
+                  onClick={() => {
+                    triggerHaptic('medium');
+                    setIsMenuPopupOpen(true);
+                  }}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-blue-600/30 hover:bg-blue-600/40 border border-blue-400/40 text-xs font-bold text-white shadow-lg shadow-blue-600/20 transition active:scale-95"
+                  title="Buka Menu & Navigasi"
+                >
+                  <Sliders className="w-3.5 h-3.5 text-blue-300" />
+                  <span>Menu</span>
+                </button>
               </div>
-              <p className="text-[11px] text-slate-400">
-                <span className="font-semibold text-slate-200">{formattedSheetMonth}</span>
-              </p>
-            </div>
-          </div>
-
-          {/* Right: Clean Action Buttons & Semi-Transparent Glass Menu Trigger */}
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            {/* Sync Button */}
-            <button
-              onClick={() => {
-                triggerHaptic('medium');
-                handleSyncFromSheets();
-              }}
-              disabled={isSyncing}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-xs font-semibold text-slate-200 transition active:scale-95 disabled:opacity-50"
-              title="Sinkronisasi Google Sheets"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 text-sky-400 ${isSyncing ? 'animate-spin' : ''}`} />
-              <span className="hidden md:inline">{isSyncing ? 'Sinkron...' : 'Sync'}</span>
-            </button>
-
-            {/* Laporan Otomatis */}
-            <button
-              onClick={() => {
-                triggerHaptic('light');
-                setIsReportModalOpen(true);
-              }}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-xs font-semibold text-slate-200 transition active:scale-95"
-              title="Laporan Otomatis"
-            >
-              <FileText className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="hidden md:inline">Laporan</span>
-            </button>
-
-            {/* Popup Menu Button (Semi-Transparent Glass Popup Container) */}
-            <button
-              onClick={() => {
-                triggerHaptic('medium');
-                setIsMenuPopupOpen(true);
-              }}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-blue-600/30 hover:bg-blue-600/40 border border-blue-400/40 text-xs font-bold text-white shadow-lg shadow-blue-600/20 transition active:scale-95"
-              title="Buka Menu & Navigasi"
-            >
-              <Sliders className="w-3.5 h-3.5 text-blue-300" />
-              <span>Menu</span>
-            </button>
-          </div>
-        </header>
+            </header>
 
         {/* Sync Status Banner */}
         {syncNotice && (
@@ -1437,6 +1719,8 @@ export default function App() {
         currentNetWorth={totalAset}
         settings={glassSettings}
       />
-    </div>
+    </motion.div>
+  )}
+</AnimatePresence>
   );
 }
